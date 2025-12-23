@@ -2,21 +2,104 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import models, schemas
 import json
+import base64
+import numpy as np
+import cv2
+try:
+    import insightface
+    from insightface.app import FaceAnalysis
+    FACE_APP = None  # Lazy load
+except ImportError:
+    insightface = None
+    FACE_APP = None
 
-def log_access(db: Session, vendor: models.User, pic: models.User, gate: models.Gate, task: models.Task, success: bool, reason: str, ip: str):
+from embedding_utils import cosine_similarity
+import io
+from PIL import Image
+
+SIMILARITY_THRESHOLD = 0.40  # InsightFace typically uses lower threshold (0.3-0.5)
+
+def get_face_app():
+    """Lazy load the face analysis app"""
+    global FACE_APP
+    if FACE_APP is None and insightface is not None:
+        FACE_APP = FaceAnalysis(providers=['CPUExecutionProvider'])
+        FACE_APP.prepare(ctx_id=0, det_size=(640, 640))
+    return FACE_APP
+
+def get_embedding_from_b64(b64_str: str):
+    """
+    Decodes a base64 image string and generates face embedding using InsightFace.
+    """
+    if insightface is None:
+        print("Warning: insightface library not installed. Skipping embedding generation.")
+        return None
+
+    try:
+        # Handle data URI scheme if present
+        if ',' in b64_str:
+            b64_str = b64_str.split(',')[1]
+            
+        image_data = base64.b64decode(b64_str)
+        image = Image.open(io.BytesIO(image_data))
+        image = image.convert('RGB')
+        image_np = np.array(image)
+        
+        # Convert RGB to BGR for OpenCV/InsightFace
+        image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        
+        # Get face app
+        app = get_face_app()
+        if app is None:
+            return None
+            
+        # Detect faces and get embeddings
+        faces = app.get(image_bgr)
+        if len(faces) > 0:
+            # Return the embedding of the first detected face
+            return faces[0].embedding
+        return None
+    except Exception as e:
+        print(f"Error generating embedding: {e}")
+        return None
+
+def verify_identity(user: models.User, incoming_embedding: list[float]) -> tuple[bool, float]:
+    """
+    Verifies if the incoming embedding matches the user's stored face image.
+    """
+    if not user.face_image or not incoming_embedding:
+        return True, 1.0  # Skip if no data (fallback to ID trust)
+
+    # 1. Generate embedding from stored DB image
+    stored_embedding = get_embedding_from_b64(user.face_image)
+    
+    if stored_embedding is None:
+        if insightface is None:
+            # Bypass verification if library is missing
+            return True, 1.0
+        return False, 0.0 # stored image invalid
+
+    # 2. Compare using Cosine Similarity
+    incoming_vec = np.array(incoming_embedding)
+    score = cosine_similarity(stored_embedding, incoming_vec)
+    
+    return score > SIMILARITY_THRESHOLD, score
+
+def log_access(db: Session, vendor: models.User, pic: models.User, gate: models.Gate, task: models.Task, success: bool, reason: str, ip: str, similarity: float = None):
     details = {
         'vendor_id': vendor.id if vendor else None,
         'pic_id': pic.id if pic else None,
         'task_id': task.id if task else None,
-        'gate_record_id': gate.id if gate else None
+        'gate_record_id': gate.id if gate else None,
+        'similarity_score': str(similarity) if similarity is not None else None
     }
     
     log = models.AuditLog(
         action='access_validated',
         entity_type='access_request',
         entity_id=None,
-        user_id=None, # System action essentially
-        details=details, # SQLAlchemy handles dict to JSON if using a specific type or we dump it
+        user_id=None, 
+        details=details,
         ip_address=ip,
         success=success,
         reason=reason,
@@ -25,11 +108,19 @@ def log_access(db: Session, vendor: models.User, pic: models.User, gate: models.
     db.add(log)
     db.commit()
 
+
 def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_address: str):
     # Step 1: Verify vendor exists
     vendor = db.query(models.User).filter(models.User.face_id == request.vendor_face_id).first()
     if not vendor:
-        return {"approved": False, "reason": "Vendor not found"}
+        return {"approved": False, "reason": "Vendor not found", "similarity": 0.0}
+
+    # Verify Vendor Identity (Embedding Match)
+    if request.vendor_embedding:
+        is_match, score = verify_identity(vendor, request.vendor_embedding)
+        if not is_match:
+            log_access(db, vendor, None, None, None, False, f"Vendor face mismatch (Score: {score:.2f})", ip_address, score)
+            return {"approved": False, "reason": "Vendor face verification failed", "similarity": score}
 
     # Step 2: Verify vendor role
     if vendor.role != 'vendor':
@@ -41,6 +132,13 @@ def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_addr
     if not pic:
         log_access(db, vendor, None, None, None, False, "PIC not found", ip_address)
         return {"approved": False, "reason": "PIC not found"}
+
+    # Verify PIC Identity (Embedding Match)
+    if request.pic_embedding:
+        is_match, score = verify_identity(pic, request.pic_embedding)
+        if not is_match:
+            log_access(db, vendor, pic, None, None, False, f"PIC face mismatch (Score: {score:.2f})", ip_address, score)
+            return {"approved": False, "reason": "PIC face verification failed", "similarity": score}
 
     # Step 4: Verify PIC is NOT a vendor
     if pic.role == 'vendor':
@@ -59,7 +157,6 @@ def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_addr
         return {"approved": False, "reason": "Gate is inactive"}
 
     # Step 7: Find Active Task
-    # Must be status='active', matches vendor_id, pic_id
     task = db.query(models.Task).filter(
         models.Task.vendor_id == vendor.id,
         models.Task.pic_id == pic.id,
@@ -77,7 +174,6 @@ def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_addr
         return {"approved": False, "reason": "Task is outside valid time window"}
 
     # Step 9: Verify Gate Authorization
-    # Check if this task is associated with this gate
     if gate not in task.gates:
         log_access(db, vendor, pic, gate, task, False, "Gate not authorized", ip_address)
         return {"approved": False, "reason": "Gate not authorized for this task"}
