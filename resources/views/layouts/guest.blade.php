@@ -25,11 +25,6 @@
                 
                 <div class="relative z-10 text-center text-white p-12">
                     <img src="{{ asset('sentinel-logo.png') }}" alt="Sentinel" class="w-72 h-72 relative z-10 drop-shadow-md mx-auto mb-8">
-                    <!-- <x-application-logo class="w-32 h-32 mx-auto mb-8 fill-current text-white/90 drop-shadow-glow" /> -->
-                    <!-- <h1 class="font-display font-medium text-5xl mb-4 tracking-tight">SENTINEL</h1>
-                    <p class="font-bricolage font-light text-xl text-blue-100 max-w-md mx-auto">
-                        Advanced Data Center Access Control & <br> Escort Compliance System
-                    </p> -->
                 </div>
             </div>
 

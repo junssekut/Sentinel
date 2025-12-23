@@ -14,10 +14,16 @@ class EnsureVendorApproved
     public function handle(Request $request, Closure $next)
     {
         $user = Auth::user();
+        
+        // If user is a vendor and not approved, show pending approval page
         if ($user && $user->isVendor() && ! $user->isApproved()) {
-            Auth::logout();
-            return redirect()->route('login')->with('error', 'Your account is pending approval by DCFM or SOC.');
+            // Allow access to logout and pending approval page
+            if ($request->routeIs('vendor.pending-approval') || $request->routeIs('logout')) {
+                return $next($request);
+            }
+            return redirect()->route('vendor.pending-approval');
         }
+        
         return $next($request);
     }
 }

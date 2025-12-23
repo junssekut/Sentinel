@@ -12,6 +12,11 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Vendor pending approval page
+Route::get('/vendor/pending-approval', function () {
+    return view('vendor-pending');
+})->middleware(['auth'])->name('vendor.pending-approval');
+
 // Dashboard
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
