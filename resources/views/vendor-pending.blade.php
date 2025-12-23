@@ -1,7 +1,7 @@
 <x-app-layout>
-    <div class="min-h-screen flex items-center justify-center px-4">
-        <div class="max-w-2xl w-full">
-            <!-- Pending Approval Card -->
+    <!-- Pending Approval Card -->
+    <div class="flex items-center justify-center min-h-[calc(100vh-300px)]">
+        <div class="max-w-2xl w-full mx-auto">
             <div class="bg-white rounded-3xl shadow-bento-hover border border-white/60 overflow-hidden">
                 <!-- Header with Gradient -->
                 <div class="bg-gradient-to-br from-warning/10 to-warning/5 p-8 text-center border-b border-warning/20">
