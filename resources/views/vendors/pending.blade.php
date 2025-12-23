@@ -9,7 +9,7 @@
         </div>
     </x-slot>
 
-    <div class="max-w-7xl mx-auto"
+    <div class="max-w-7xl mx-auto">
 
         @if (session('status'))
             <div class="bg-success/10 border border-success/20 text-success px-4 py-3 rounded-xl mb-6 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
