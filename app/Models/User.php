@@ -25,6 +25,7 @@ class User extends Authenticatable
         'role',
         'face_image',
         'face_id',
+        'face_approved',
     ];
 
     /**
@@ -48,6 +49,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'face_approved' => 'boolean',
         ];
     }
 
@@ -59,6 +61,14 @@ class User extends Authenticatable
     public function isVendor(): bool
     {
         return $this->role === 'vendor';
+    }
+
+    /**
+     * Check if the user's face image has been approved.
+     */
+    public function isApproved(): bool
+    {
+        return (bool) $this->face_approved;
     }
 
     /**

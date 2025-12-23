@@ -47,5 +47,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-gates', function (User $user) {
             return $user->isDcfm();
         });
+
+        // Allow DCFM or SOC to approve vendor faces
+        Gate::define('approve-faces', function (User $user) {
+            return $user->isDcfm() || $user->isSoc();
+        });
     }
 }

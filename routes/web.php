@@ -6,6 +6,7 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\GateController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\UserApprovalController;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -16,7 +17,7 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'vendor.approved'])->group(function () {
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -35,6 +36,10 @@ Route::middleware('auth')->group(function () {
 
     // Gate management routes (DCFM only - enforced by policy)
     Route::resource('gates', GateController::class);
+    // Vendor approval routes
+    Route::get('/vendors/pending', [UserApprovalController::class, 'index'])->name('vendors.pending');
+    Route::post('/vendors/{user}/approve', [UserApprovalController::class, 'approve'])->name('vendors.approve');
+
 });
 
 require __DIR__.'/auth.php';

@@ -21,32 +21,38 @@
             [x-cloak] { display: none !important; }
         </style>
     </head>
-    <body class="font-sans antialiased">
-        <div class="min-h-screen bg-light-100">
+    <body class="font-sans antialiased text-navy-800 bg-light-100 selection:bg-sentinel-blue selection:text-white">
+        <!-- Background Mesh -->
+        <div class="fixed inset-0 z-[-1] bg-mesh opacity-30 pointer-events-none"></div>
+
+        <div class="min-h-screen flex flex-col">
             @include('layouts.navigation')
 
             <!-- Page Heading -->
             @isset($header)
-                <header class="bg-white shadow-sm border-b border-light-200">
-                    <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
+                <header class="bg-white/70 backdrop-blur-md sticky top-0 z-20 border-b border-white/50 shadow-sm">
+                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                        <h2 class="font-display font-bold text-2xl text-navy-900 tracking-tight">
+                            {{ $header }}
+                        </h2>
                     </div>
                 </header>
             @endisset
 
             <!-- Flash Messages -->
             @if(session('success'))
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-                    <div class="bg-success/10 border border-success text-success px-4 py-3 rounded-lg relative" role="alert">
-                        <span class="block sm:inline">{{ session('success') }}</span>
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+                    <div class="bg-success/10 border border-success/20 text-success p-4 rounded-xl shadow-sm flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        <span class="font-medium">{{ session('success') }}</span>
                     </div>
                 </div>
             @endif
 
             @if($errors->any())
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-                    <div class="bg-error/10 border border-error text-error px-4 py-3 rounded-lg relative" role="alert">
-                        <ul class="list-disc list-inside">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+                    <div class="bg-error/10 border border-error/20 text-error p-4 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-2">
+                        <ul class="list-disc list-inside space-y-1">
                             @foreach($errors->all() as $error)
                                 <li>{{ $error }}</li>
                             @endforeach
@@ -56,13 +62,17 @@
             @endif
 
             <!-- Page Content -->
-            <main class="py-6">
-                {{ $slot }}
+            <main class="flex-grow py-8">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    {{ $slot }}
+                </div>
             </main>
 
             <!-- Floating Action Button Slot -->
             @isset($fab)
-                {{ $fab }}
+                <div class="fixed bottom-8 right-8 z-50 animate-float">
+                    {{ $fab }}
+                </div>
             @endisset
         </div>
     </body>

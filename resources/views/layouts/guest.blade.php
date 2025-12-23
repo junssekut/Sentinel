@@ -14,16 +14,41 @@
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans text-gray-900 antialiased">
-        <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100">
-            <div>
-                <a href="/">
-                    <x-application-logo class="w-20 h-20 fill-current text-gray-500" />
-                </a>
+    <body class="font-sans text-navy-900 antialiased bg-light-100">
+        <div class="min-h-screen flex">
+            <!-- Left Side: Branding -->
+            <div class="hidden lg:flex lg:w-1/2 bg-sentinel-gradient relative overflow-hidden items-center justify-center">
+                <!-- Abstract Shapes/Gradients -->
+                <div class="absolute inset-0 opacity-20 bg-hero-pattern"></div>
+                <div class="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                <div class="absolute bottom-0 left-0 w-96 h-96 bg-blue-900/40 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+                
+                <div class="relative z-10 text-center text-white p-12">
+                    <img src="{{ asset('sentinel-logo.png') }}" alt="Sentinel" class="w-72 h-72 relative z-10 drop-shadow-md mx-auto mb-8">
+                    <!-- <x-application-logo class="w-32 h-32 mx-auto mb-8 fill-current text-white/90 drop-shadow-glow" /> -->
+                    <!-- <h1 class="font-display font-medium text-5xl mb-4 tracking-tight">SENTINEL</h1>
+                    <p class="font-bricolage font-light text-xl text-blue-100 max-w-md mx-auto">
+                        Advanced Data Center Access Control & <br> Escort Compliance System
+                    </p> -->
+                </div>
             </div>
 
-            <div class="w-full sm:max-w-md mt-6 px-6 py-4 bg-white shadow-md overflow-hidden sm:rounded-lg">
-                {{ $slot }}
+            <!-- Right Side: Content -->
+            <div class="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 bg-white/50 backdrop-blur-3xl">
+                <div class="w-full max-w-md">
+                    <!-- Mobile Logo (visible only on small screens) -->
+                    <div class="lg:hidden flex justify-center mb-8">
+                        <x-application-logo class="w-16 h-16 fill-current text-sentinel-blue" />
+                    </div>
+
+                    <div class="bg-white/80 p-8 rounded-2xl shadow-bento border border-white/50">
+                        {{ $slot }}
+                    </div>
+                    
+                    <div class="mt-8 text-center text-sm text-slate-400 font-bricolage">
+                        &copy; {{ date('Y') }} Sentinel System. Secured & Monitored.
+                    </div>
+                </div>
             </div>
         </div>
     </body>
