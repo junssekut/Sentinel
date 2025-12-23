@@ -6,10 +6,7 @@
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a href="{{ route('dashboard') }}" class="flex items-center gap-2">
-                        <svg class="w-8 h-8 text-sentinel-blue" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2L2 7v10c0 5.55 4.84 9.74 10 11 5.16-1.26 10-5.45 10-11V7L12 2zm0 2.18l8 4v9.73c-.01 4.3-3.78 7.54-8 8.67-4.22-1.13-7.99-4.37-8-8.67v-9.73l8-4z"/>
-                            <path d="M12 11a2 2 0 100-4 2 2 0 000 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                        </svg>
+                        <img src="{{ asset('sentinel-logo.png') }}" alt="Sentinel" class="w-8 h-8">
                         <span class="text-white font-bold text-lg">Sentinel</span>
                     </a>
                 </div>

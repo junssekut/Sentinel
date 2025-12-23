@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/sentinel-logo.svg" alt="Sentinel Logo" width="100" height="100">
+  <img src="public/sentinel-text-shadow.png" alt="Sentinel Logo">
   
   # Sentinel
   
