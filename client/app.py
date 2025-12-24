@@ -191,17 +191,18 @@ class FaceClientApp:
         role = self.role_var.get()
         embedding = self._extract_embedding(frame)
         
-        # Convert frame to base64 for saving on server
+        # Convert frame to base64 data URI for saving on server
         ret, buffer = cv2.imencode('.jpg', frame)
-        face_image = base64.b64encode(buffer).decode('utf-8')
+        face_image_b64 = base64.b64encode(buffer).decode('utf-8')
+        face_image_data_uri = f"data:image/jpeg;base64,{face_image_b64}"
 
         if embedding is None:
             return
         payload = {
             "name": name,
             "role": role,
-            "face_image": face_image,
-            "embedding": embedding.tolist(), # Send pre-computed embedding
+            "face_image": face_image_data_uri,  # Send as data URI for HTML <img> display
+            "embedding": embedding.tolist(),
         }
         
         try:
@@ -213,7 +214,7 @@ class FaceClientApp:
             )
             resp.raise_for_status()
             data = resp.json()
-            self.status_var.set(f"Enroll berhasil: {data.get('name')} (ID: {data.get('face_id')})")
+            self.status_var.set(f"Enroll berhasil: {data.get('name')} (User ID: {data.get('user_id')})")
         except Exception as exc:
             self.status_var.set(f"Enroll gagal: {exc}")
             messagebox.showerror("Enroll", f"Enroll gagal: {exc}")

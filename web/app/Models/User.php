@@ -24,8 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         'face_image',
-        'face_id',
-        'face_approved',
+        'face_embedding',
     ];
 
     /**
@@ -49,7 +48,6 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'face_approved' => 'boolean',
         ];
     }
 
@@ -64,11 +62,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if the user's face image has been approved.
+     * Check if the user's face has been approved (has embedding).
      */
     public function isApproved(): bool
     {
-        return (bool) $this->face_approved;
+        return !empty($this->face_embedding);
     }
 
     /**

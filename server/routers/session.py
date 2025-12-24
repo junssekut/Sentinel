@@ -85,7 +85,6 @@ async def scan_face(
 
     person = ScannedPerson(
         user_id=user.id,
-        face_id=user.face_id,
         name=user.name,
         role=user.role,
     )
@@ -122,7 +121,7 @@ async def scan_face(
             state=SessionState.APPROVED,
             message=f"Access APPROVED by PIC '{user.name}'. Door unlocking...",
             vendors=[v.name for v in session.vendors],
-            pic={"name": user.name, "face_id": user.face_id},
+            pic={"name": user.name, "user_id": user.id},
         )
 
     else:
@@ -166,7 +165,7 @@ def get_session_status(session_id: str):
         state=session.state,
         message=state_messages.get(session.state, "Unknown state"),
         vendors=[v.name for v in session.vendors],
-        pic={"name": session.pic.name, "face_id": session.pic.face_id} if session.pic else None,
+        pic={"name": session.pic.name, "user_id": session.pic.user_id} if session.pic else None,
     )
 
 

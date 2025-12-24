@@ -136,8 +136,8 @@ class AuditLog extends Model
      * Log an access validation attempt.
      */
     public static function logAccessValidation(
-        string $vendorFaceId,
-        string $picFaceId,
+        int $vendorId,
+        int $picId,
         string $gateId,
         bool $approved,
         ?string $reason = null,
@@ -150,8 +150,8 @@ class AuditLog extends Model
             'entity_id' => null,
             'user_id' => null,
             'details' => array_merge([
-                'vendor_face_id' => $vendorFaceId,
-                'pic_face_id' => $picFaceId,
+                'vendor_id' => $vendorId,
+                'pic_id' => $picId,
                 'gate_id' => $gateId,
             ], $details ?? []),
             'ip_address' => $ipAddress,

@@ -42,7 +42,6 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
             'role' => 'vendor',
             'face_image' => $request->face_image,
-            'face_approved' => false,
         ]);
 
         event(new Registered($user));

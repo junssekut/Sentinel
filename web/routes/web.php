@@ -38,6 +38,8 @@ Route::middleware(['auth', 'vendor.approved'])->group(function () {
 
     // User management routes (DCFM only - enforced by policy)
     Route::resource('users', UserController::class);
+    Route::post('/users/{user}/approve', [UserController::class, 'approve'])->name('users.approve');
+    Route::post('/users/{user}/reject', [UserController::class, 'reject'])->name('users.reject');
 
     // Gate management routes (DCFM only - enforced by policy)
     Route::resource('gates', GateController::class);

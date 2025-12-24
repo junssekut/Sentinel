@@ -108,27 +108,16 @@ def log_access(db: Session, vendor: models.User, pic: models.User, gate: models.
     db.add(log)
     db.commit()
 
-    db.add(log)
-    db.commit()
+
+def get_user_by_id(db: Session, user_id: int):
+    """Get user by primary key ID"""
+    return db.query(models.User).filter(models.User.id == user_id).first()
 
 
-def create_user(db: Session, user: schemas.UserCreate):
-    # Generate a simple face_id if not provided (e.g., name-role base)
-    # In a real app, this might be a UUID or Card ID.
-    import uuid
-    face_id = user.face_id or f"{user.role}-{uuid.uuid4().hex[:8]}"
-    
-    db_user = models.User(
-        name=user.name,
-        role=user.role,
-        face_id=face_id,
-        face_image=user.face_image, # Base64 image (optional)
-        face_embedding=user.embedding # Store pre-computed embedding
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+def get_user_by_name(db: Session, name: str):
+    """Get user by name"""
+    return db.query(models.User).filter(models.User.name == name).first()
+
 
 def identify_user(db: Session, embedding: list[float], threshold: float = 0.45):
     """
@@ -160,15 +149,15 @@ def identify_user(db: Session, embedding: list[float], threshold: float = 0.45):
         
     return None, best_score
 
+
 def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_address: str):
+    """
+    Validate access based on vendor_id and pic_id (user IDs).
+    """
     # Step 1: Verify vendor exists
-    vendor = get_user_by_face_id(db, request.vendor_face_id)
+    vendor = get_user_by_id(db, request.vendor_id)
     if not vendor:
         return {"approved": False, "reason": "Vendor not found", "similarity": 0.0}
-
-def get_user_by_face_id(db: Session, face_id: str):
-    return db.query(models.User).filter(models.User.face_id == face_id).first()
-
 
     # Verify Vendor Identity (Embedding Match)
     if request.vendor_embedding:
@@ -183,7 +172,7 @@ def get_user_by_face_id(db: Session, face_id: str):
         return {"approved": False, "reason": "Invalid vendor role"}
 
     # Step 3: Verify PIC exists
-    pic = db.query(models.User).filter(models.User.face_id == request.pic_face_id).first()
+    pic = get_user_by_id(db, request.pic_id)
     if not pic:
         log_access(db, vendor, None, None, None, False, "PIC not found", ip_address)
         return {"approved": False, "reason": "PIC not found"}

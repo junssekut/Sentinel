@@ -45,8 +45,8 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => ['required', Password::defaults()],
-            'role' => 'required|in:vendor,dcfm,soc',
-            'face_image' => 'required|string', // Base64 encoded image
+            'role' => 'required|in:vendor,dcfm,soc,pic',
+            'face_image' => 'nullable|string', // Base64 encoded image (optional, enrolled via client)
         ]);
 
         $user = User::create([
@@ -54,8 +54,7 @@ class UserController extends Controller
             'email' => $validated['email'],
             'password' => $validated['password'],
             'role' => $validated['role'],
-            'face_image' => $validated['face_image'],
-            'face_id' => Str::uuid()->toString(), // Generate unique face ID
+            'face_image' => $validated['face_image'] ?? null,
         ]);
 
         return redirect()->route('users.index')
@@ -135,5 +134,69 @@ class UserController extends Controller
 
         return redirect()->route('users.index')
             ->with('success', 'User deleted successfully.');
+    }
+
+    /**
+     * Approve a user's face and sync to FastAPI server.
+     * This generates the face_embedding server-side.
+     */
+    public function approve(User $user)
+    {
+        $this->authorize('update', $user);
+
+        // Check if user has face image to approve
+        if (!$user->face_image) {
+            return redirect()->route('users.show', $user)
+                ->with('error', 'Cannot approve: User has no face image. Please enroll face via client first.');
+        }
+
+        // Already approved (has embedding)
+        if ($user->face_embedding) {
+            return redirect()->route('users.show', $user)
+                ->with('info', 'User face is already approved.');
+        }
+
+        // Sync to FastAPI server - generates embedding from face_image
+        try {
+            $serverUrl = env('FASTAPI_SERVER_URL', 'http://127.0.0.1:8001');
+            $apiSecret = env('API_SECRET', 'dev-secret');
+            
+            $response = \Illuminate\Support\Facades\Http::timeout(30)
+                ->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}", [
+                    'name' => $user->name,
+                    'role' => $user->role,
+                    'face_image' => $user->face_image,
+                ]);
+
+            if ($response->successful()) {
+                // Refresh to get updated embedding from database
+                $user->refresh();
+                return redirect()->route('users.show', $user)
+                    ->with('success', 'User face approved and synced successfully.');
+            } else {
+                \Log::warning("Failed to sync user {$user->id} to FastAPI: " . $response->body());
+                return redirect()->route('users.show', $user)
+                    ->with('error', 'Failed to sync to FastAPI server: ' . $response->body());
+            }
+        } catch (\Exception $e) {
+            \Log::warning("Could not sync to FastAPI server: " . $e->getMessage());
+            return redirect()->route('users.show', $user)
+                ->with('error', 'Could not connect to FastAPI server.');
+        }
+    }
+
+    /**
+     * Reject/unapprove a user's face (clear the embedding).
+     */
+    public function reject(User $user)
+    {
+        $this->authorize('update', $user);
+
+        // Clear the embedding to "unapprove"
+        $user->face_embedding = null;
+        $user->save();
+
+        return redirect()->route('users.show', $user)
+            ->with('success', 'User face approval revoked.');
     }
 }

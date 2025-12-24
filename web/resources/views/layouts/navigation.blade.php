@@ -33,7 +33,7 @@
                         </a>
                         <a href="{{ route('vendors.pending') }}" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 relative {{ request()->routeIs('vendors.pending') ? 'text-white bg-sentinel-blue' : 'text-gray-300 hover:text-white hover:bg-white/10' }}">
                             Pending
-                            @if(\App\Models\User::where('face_approved', false)->where('role', 'vendor')->count() > 0)
+                            @if(\App\Models\User::where('role', 'vendor')->whereNotNull('face_image')->whereNull('face_embedding')->count() > 0)
                                 <span class="absolute -top-1 -right-1 w-2 h-2 bg-error rounded-full animate-pulse"></span>
                             @endif
                         </a>

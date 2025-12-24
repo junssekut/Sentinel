@@ -23,7 +23,7 @@
                     <tr>
                         <th class="px-6 py-4 text-left text-xs font-bold text-navy-900 uppercase tracking-wider">User</th>
                         <th class="px-6 py-4 text-left text-xs font-bold text-navy-900 uppercase tracking-wider">Role</th>
-                        <th class="px-6 py-4 text-left text-xs font-bold text-navy-900 uppercase tracking-wider">Face ID</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-navy-900 uppercase tracking-wider">Face Status</th>
                         <th class="px-6 py-4 text-left text-xs font-bold text-navy-900 uppercase tracking-wider">Created</th>
                         <th class="px-6 py-4 text-right text-xs font-bold text-navy-900 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -33,9 +33,15 @@
                     <tr class="hover:bg-slate-50 transition-colors group">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center gap-3">
+                                @if($user->face_image)
+                                <div class="w-11 h-11 rounded-full overflow-hidden border-2 border-sentinel-blue/30 transform group-hover:scale-110 transition-transform duration-200">
+                                    <img src="{{ $user->face_image }}" alt="{{ $user->name }}" class="w-full h-full object-cover">
+                                </div>
+                                @else
                                 <div class="w-11 h-11 bg-sentinel-gradient rounded-full flex items-center justify-center shadow-md transform group-hover:scale-110 transition-transform duration-200">
                                     <span class="text-white font-display font-bold text-lg">{{ substr($user->name, 0, 1) }}</span>
                                 </div>
+                                @endif
                                 <div>
                                     <div class="text-sm font-bold text-navy-900">{{ $user->name }}</div>
                                     <div class="text-sm text-slate-500">{{ $user->email }}</div>
@@ -46,15 +52,22 @@
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
                                 @if($user->role === 'dcfm') bg-sentinel-blue/10 text-sentinel-blue border border-sentinel-blue/20
                                 @elseif($user->role === 'soc') bg-navy-800/10 text-navy-800 border border-navy/20
+                                @elseif($user->role === 'pic') bg-success/10 text-success border border-success/20
                                 @else bg-slate-200 text-slate-600 border border-slate-300 @endif">
                                 {{ $user->role }}
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            @if($user->face_id)
-                            <span class="text-sm font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded">{{ Str::limit($user->face_id, 12) }}</span>
+                            @if($user->face_embedding)
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-success/10 text-success border border-success/20">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                Enrolled
+                            </span>
                             @else
-                            <span class="text-sm text-error font-medium">Not set</span>
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-warning/10 text-warning border border-warning/20">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                                Not Enrolled
+                            </span>
                             @endif
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-medium">

@@ -23,8 +23,8 @@ class AccessController extends Controller
      *
      * Expected payload:
      * {
-     *   "vendor_face_id": "string",
-     *   "pic_face_id": "string",
+     *   "vendor_id": integer,
+     *   "pic_id": integer,
      *   "gate_id": "string",
      *   "timestamp": "ISO-8601" (optional)
      * }
@@ -32,15 +32,15 @@ class AccessController extends Controller
     public function validate(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'vendor_face_id' => 'required|string',
-            'pic_face_id' => 'required|string',
+            'vendor_id' => 'required|integer|exists:users,id',
+            'pic_id' => 'required|integer|exists:users,id',
             'gate_id' => 'required|string',
             'timestamp' => 'nullable|date',
         ]);
 
         $result = $this->validationService->validate(
-            $validated['vendor_face_id'],
-            $validated['pic_face_id'],
+            $validated['vendor_id'],
+            $validated['pic_id'],
             $validated['gate_id'],
             $validated['timestamp'] ?? null,
             $request->ip()

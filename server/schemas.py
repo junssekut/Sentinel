@@ -3,8 +3,8 @@ from typing import Optional, List
 from datetime import datetime
 
 class AccessValidateRequest(BaseModel):
-    vendor_face_id: str
-    pic_face_id: str
+    vendor_id: int
+    pic_id: int
     gate_id: str
     timestamp: Optional[datetime] = None
     # Embeddings from IoT device (now required for verification)
@@ -15,7 +15,6 @@ class UserCreate(BaseModel):
     name: str
     role: str # vendor, pic
     face_image: Optional[str] = None # Base64 of the face (optional now)
-    face_id: Optional[str] = None
     embedding: Optional[List[float]] = None # Pre-computed embedding from client
 
 class IdentifyRequest(BaseModel):

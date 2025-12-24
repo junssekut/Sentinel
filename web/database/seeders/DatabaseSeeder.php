@@ -22,7 +22,6 @@ class DatabaseSeeder extends Seeder
             'email' => 'admin@sentinel.com',
             'password' => 'password',
             'role' => 'dcfm',
-            'face_id' => 'DCFM-' . Str::uuid(),
             'face_image' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
         ]);
 
@@ -32,7 +31,6 @@ class DatabaseSeeder extends Seeder
             'email' => 'soc@sentinel.com',
             'password' => 'password',
             'role' => 'soc',
-            'face_id' => 'SOC-' . Str::uuid(),
             'face_image' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
         ]);
 
@@ -42,7 +40,6 @@ class DatabaseSeeder extends Seeder
             'email' => 'vendor1@example.com',
             'password' => 'password',
             'role' => 'vendor',
-            'face_id' => 'VENDOR-' . Str::uuid(),
             'face_image' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
         ]);
 
@@ -51,7 +48,6 @@ class DatabaseSeeder extends Seeder
             'email' => 'vendor2@example.com',
             'password' => 'password',
             'role' => 'vendor',
-            'face_id' => 'VENDOR-' . Str::uuid(),
             'face_image' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
         ]);
 

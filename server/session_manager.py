@@ -22,7 +22,6 @@ class SessionState(str, Enum):
 @dataclass
 class ScannedPerson:
     user_id: int
-    face_id: str
     name: str
     role: str
     scanned_at: datetime = field(default_factory=datetime.now)
@@ -46,10 +45,10 @@ class AccessSession:
             "session_id": self.id,
             "state": self.state,
             "vendors": [
-                {"name": v.name, "face_id": v.face_id, "role": v.role}
+                {"name": v.name, "user_id": v.user_id, "role": v.role}
                 for v in self.vendors
             ],
-            "pic": {"name": self.pic.name, "face_id": self.pic.face_id} if self.pic else None,
+            "pic": {"name": self.pic.name, "user_id": self.pic.user_id} if self.pic else None,
             "created_at": self.created_at.isoformat(),
             "expires_at": self.expires_at.isoformat(),
         }
@@ -91,9 +90,9 @@ class SessionManager:
         if session.state not in [SessionState.WAITING_VENDORS, SessionState.WAITING_PIC]:
             return False
 
-        # Check if already scanned
+        # Check if already scanned (by user_id)
         for v in session.vendors:
-            if v.face_id == person.face_id:
+            if v.user_id == person.user_id:
                 return True  # Already in queue
 
         session.vendors.append(person)

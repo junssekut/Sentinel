@@ -23,15 +23,15 @@ class AccessValidationService
     /**
      * Validate access request from IoT device.
      *
-     * @param string $vendorFaceId The face ID of the vendor
-     * @param string $picFaceId The face ID of the PIC
+     * @param int $vendorId The ID of the vendor user
+     * @param int $picId The ID of the PIC user
      * @param string $gateId The gate identifier
      * @param string|null $timestamp ISO-8601 timestamp (optional)
      * @return array{approved: bool, reason: string}
      */
     public function validate(
-        string $vendorFaceId,
-        string $picFaceId,
+        int $vendorId,
+        int $picId,
         string $gateId,
         ?string $timestamp = null,
         ?string $ipAddress = null
@@ -40,36 +40,36 @@ class AccessValidationService
         $this->reset();
 
         // Step 1: Verify vendor exists
-        $this->vendor = User::where('face_id', $vendorFaceId)->first();
+        $this->vendor = User::find($vendorId);
         if (!$this->vendor) {
-            return $this->deny('Vendor not found', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('Vendor not found', $vendorId, $picId, $gateId, $ipAddress);
         }
 
         // Step 2: Verify vendor is actually a vendor
         if (!$this->vendor->isVendor()) {
-            return $this->deny('Invalid vendor role', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('Invalid vendor role', $vendorId, $picId, $gateId, $ipAddress);
         }
 
         // Step 3: Verify PIC exists
-        $this->pic = User::where('face_id', $picFaceId)->first();
+        $this->pic = User::find($picId);
         if (!$this->pic) {
-            return $this->deny('PIC not found', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('PIC not found', $vendorId, $picId, $gateId, $ipAddress);
         }
 
-        // Step 4: Verify PIC is not a vendor (must be DCFM or SOC)
+        // Step 4: Verify PIC is not a vendor (must be DCFM, SOC, or PIC)
         if ($this->pic->isVendor()) {
-            return $this->deny('Invalid PIC role', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('Invalid PIC role', $vendorId, $picId, $gateId, $ipAddress);
         }
 
         // Step 5: Verify gate exists
         $this->gate = Gate::where('gate_id', $gateId)->first();
         if (!$this->gate) {
-            return $this->deny('Gate not found', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('Gate not found', $vendorId, $picId, $gateId, $ipAddress);
         }
 
         // Step 6: Verify gate is active
         if (!$this->gate->is_active) {
-            return $this->deny('Gate is inactive', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('Gate is inactive', $vendorId, $picId, $gateId, $ipAddress);
         }
 
         // Step 7: Find active task with vendor and PIC assigned together
@@ -79,21 +79,21 @@ class AccessValidationService
             ->first();
 
         if (!$this->task) {
-            return $this->deny('No active task found for this vendor-PIC pair', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('No active task found for this vendor-PIC pair', $vendorId, $picId, $gateId, $ipAddress);
         }
 
         // Step 8: Verify task is within time window
         if (!$this->task->isCurrentlyValid()) {
-            return $this->deny('Task is outside valid time window', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('Task is outside valid time window', $vendorId, $picId, $gateId, $ipAddress);
         }
 
         // Step 9: Verify gate is allowed for this task
         if (!$this->task->allowsGate($gateId)) {
-            return $this->deny('Gate not authorized for this task', $vendorFaceId, $picFaceId, $gateId, $ipAddress);
+            return $this->deny('Gate not authorized for this task', $vendorId, $picId, $gateId, $ipAddress);
         }
 
         // All checks passed - approve access
-        return $this->approve($vendorFaceId, $picFaceId, $gateId, $ipAddress);
+        return $this->approve($vendorId, $picId, $gateId, $ipAddress);
     }
 
     /**
@@ -112,15 +112,15 @@ class AccessValidationService
     /**
      * Deny access and log the attempt.
      */
-    private function deny(string $reason, string $vendorFaceId, string $picFaceId, string $gateId, ?string $ipAddress): array
+    private function deny(string $reason, int $vendorId, int $picId, string $gateId, ?string $ipAddress): array
     {
         $this->approved = false;
         $this->reason = $reason;
 
         // Log the denial
         AuditLog::logAccessValidation(
-            $vendorFaceId,
-            $picFaceId,
+            $vendorId,
+            $picId,
             $gateId,
             false,
             $reason,
@@ -142,15 +142,15 @@ class AccessValidationService
     /**
      * Approve access and log the attempt.
      */
-    private function approve(string $vendorFaceId, string $picFaceId, string $gateId, ?string $ipAddress): array
+    private function approve(int $vendorId, int $picId, string $gateId, ?string $ipAddress): array
     {
         $this->approved = true;
         $this->reason = 'OK';
 
         // Log the approval
         AuditLog::logAccessValidation(
-            $vendorFaceId,
-            $picFaceId,
+            $vendorId,
+            $picId,
             $gateId,
             true,
             'OK',
