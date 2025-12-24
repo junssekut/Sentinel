@@ -3,8 +3,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
 
-# Load .env from parent directory
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+# Load .env from current directory (server/)
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 DB_CONNECTION = os.getenv("DB_CONNECTION", "mysql")
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
@@ -20,10 +20,9 @@ if DB_CONNECTION == "sqlite":
     if DB_DATABASE.startswith("/"):
         SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_DATABASE}"
     else:
-        # Assuming relative to project root if simple filename
-        # But we are in sentinel_fastapi/, parent is project root
-        project_root = os.path.dirname(os.path.dirname(__file__))
-        db_path = os.path.join(project_root, "database", DB_DATABASE)
+        # Relative to server directory
+        server_dir = os.path.dirname(__file__)
+        db_path = os.path.join(server_dir, DB_DATABASE)
         SQLALCHEMY_DATABASE_URL = f"sqlite:///{db_path}"
     
     # SQLite requires strict thread management usually, but for dev checks:
