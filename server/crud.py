@@ -108,12 +108,67 @@ def log_access(db: Session, vendor: models.User, pic: models.User, gate: models.
     db.add(log)
     db.commit()
 
+    db.add(log)
+    db.commit()
+
+
+def create_user(db: Session, user: schemas.UserCreate):
+    # Generate a simple face_id if not provided (e.g., name-role base)
+    # In a real app, this might be a UUID or Card ID.
+    import uuid
+    face_id = user.face_id or f"{user.role}-{uuid.uuid4().hex[:8]}"
+    
+    db_user = models.User(
+        name=user.name,
+        role=user.role,
+        face_id=face_id,
+        face_image=user.face_image, # Base64 image (optional)
+        face_embedding=user.embedding # Store pre-computed embedding
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def identify_user(db: Session, embedding: list[float], threshold: float = 0.45):
+    """
+    Iterates through all users with stored embeddings and finds the best match.
+    Note: For large scale, use a vector DB (Milvus/Faiss). This is O(N).
+    """
+    if not embedding:
+        return None, 0.0
+
+    users = db.query(models.User).filter(models.User.face_embedding.isnot(None)).all()
+    best_match = None
+    best_score = -1.0
+
+    target_embedding = np.array(embedding)
+
+    for user in users:
+        stored_emb = user.face_embedding
+        if stored_emb is None:
+            continue
+
+        stored_emb_np = np.array(stored_emb)
+        score = cosine_similarity(stored_emb_np, target_embedding)
+        if score > best_score:
+            best_score = score
+            best_match = user
+            
+    if best_score > threshold:
+        return best_match, best_score
+        
+    return None, best_score
 
 def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_address: str):
     # Step 1: Verify vendor exists
-    vendor = db.query(models.User).filter(models.User.face_id == request.vendor_face_id).first()
+    vendor = get_user_by_face_id(db, request.vendor_face_id)
     if not vendor:
         return {"approved": False, "reason": "Vendor not found", "similarity": 0.0}
+
+def get_user_by_face_id(db: Session, face_id: str):
+    return db.query(models.User).filter(models.User.face_id == face_id).first()
+
 
     # Verify Vendor Identity (Embedding Match)
     if request.vendor_embedding:

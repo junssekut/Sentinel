@@ -11,6 +11,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
+from routers import faces
+app.include_router(faces.router)
+
 @app.get("/")
 def read_root():
     return {"message": "Sentinel Access Control API is running"}

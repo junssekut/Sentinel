@@ -1,12 +1,12 @@
 <div align="center">
-  <img src="public/sentinel-text-shadow.png" alt="Sentinel Logo">
+  <img src="web/public/sentinel-text-shadow.png" alt="Sentinel Logo">
   
   # Sentinel
   
   **Data Center Escort Access Control System**
   
   [![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?style=flat-square&logo=laravel)](https://laravel.com)
-  [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.x-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com)
+  [![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
   [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 </div>
 
@@ -14,60 +14,49 @@
 
 ## Overview
 
-Sentinel is an internal web application designed to enforce **vendor escort compliance** within secure data center environments. It ensures that vendors are always accompanied by their assigned PIC (Person in Charge) when accessing restricted gates.
+Sentinel is an **IoT Access Control System** for secure data center environments. It enforces vendor escort compliance, ensuring vendors are always accompanied by their assigned PIC (Person in Charge).
 
-### Key Features
+### Architecture
 
-- 🔐 **Pair-based Access Control** — Vendors can only access gates with their assigned PIC present
-- 👥 **Role-based Access** — Three roles: Vendor, DCFM (Facility Manager), SOC (Security)
-- 🚪 **Gate Management** — Configure and monitor access points
-- 📋 **Task Assignment** — Create time-bound vendor visits with specific gate permissions
-- 📊 **Audit Logging** — Complete trail of all access attempts
-- 🤖 **IoT Integration** — REST API for face-scanning devices
+This monorepo contains three components:
+
+| Folder | Description | Tech Stack |
+|--------|-------------|------------|
+| [`/web`](web/) | Dashboard & Admin Panel | Laravel 12, Tailwind CSS |
+| [`/server`](server/) | Access Control API | FastAPI, Python 3.11+ |
+| [`/client`](client/) | Face Recognition Client | Python, InsightFace, Tkinter |
 
 ---
 
 ## Quick Start
 
-### Requirements
-
-- PHP 8.2+
-- Composer 2.x
-- Node.js 18+
-- SQLite (default) or MySQL/PostgreSQL
-
-### Installation
+### 1. Web Dashboard (Laravel)
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/sentinel.git
-cd sentinel
-
-# Install dependencies
-composer install
-npm install
-
-# Configure environment
-cp .env.example .env
-php artisan key:generate
-
-# Setup database
+cd web
+composer install && npm install
+cp .env.example .env && php artisan key:generate
 php artisan migrate --seed
-
-# Build assets
-npm run build
-
-# Start server
-php artisan serve
+npm run build && php artisan serve
 ```
 
-### Default Accounts
+### 2. API Server (FastAPI)
 
-| Role | Email | Password |
-|------|-------|----------|
-| DCFM (Admin) | admin@sentinel.com | password |
-| SOC (Security) | soc@sentinel.com | password |
-| Vendor | vendor1@example.com | password |
+```bash
+cd server
+python3.11 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8002
+```
+
+### 3. Face Recognition Client
+
+```bash
+cd client
+./run_client.sh
+```
+
+> **Note:** Requires Python 3.11 and `python-tk@3.11` on macOS.
 
 ---
 
@@ -75,73 +64,16 @@ php artisan serve
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](docs/architecture.md) | System design and components |
+| [Web README](web/README.md) | Laravel dashboard setup |
+| [Server README](server/README.md) | FastAPI backend details |
+| [Client README](client/README.md) | Face recognition client |
 | [API Reference](docs/api.md) | IoT integration endpoints |
-| [User Guide](docs/user-guide.md) | How to use Sentinel |
-| [Deployment](docs/deployment.md) | Production setup guide |
-
----
-
-## IoT Integration
-
-Sentinel provides a REST API for face-scanning IoT devices at gates:
-
-```http
-POST /api/access/validate
-Content-Type: application/json
-
-{
-  "vendor_face_id": "VENDOR-UUID",
-  "pic_face_id": "PIC-UUID",
-  "gate_id": "GATE-MAIN-001"
-}
-```
-
-**Response:**
-```json
-{
-  "approved": true,
-  "reason": "OK"
-}
-```
-
-See [API Documentation](docs/api.md) for details.
-
----
-
-## Tech Stack
-
-- **Backend:** Laravel 12, PHP 8.2
-- **Frontend:** Blade, Tailwind CSS, Vite
-- **Database:** SQLite (dev) / MySQL (prod)
-- **Auth:** Laravel Breeze
-
----
-
-## Screenshots
-
-<div align="center">
-  <img src="docs/assets/dashboard.png" alt="Dashboard" width="600">
-  <p><em>Bento-style Dashboard</em></p>
-</div>
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing`)
-5. Open a Pull Request
 
 ---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
+MIT License - see [LICENSE](LICENSE) for details.
 
 <div align="center">
   <sub>Built with ❤️ for secure data center operations</sub>

@@ -18,6 +18,7 @@ class User(Base):
     role = Column(String) # vendor, dcfm, soc
     face_id = Column(String, unique=True, nullable=True)
     face_image = Column(Text, nullable=True)
+    face_embedding = Column(JSON, nullable=True) # Store embedding as JSON list
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
