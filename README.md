@@ -29,6 +29,30 @@ This monorepo contains four components:
 
 ---
 
+## Screenshots
+
+### Dashboard
+Real-time overview of active tasks, gate status, and recent activity.
+![Dashboard](docs/images/dashboard.png)
+
+### User Management
+Manage users, vendors, and security personnel.
+![Users List](docs/images/users_list.png)
+
+### Tasks
+Monitor access tasks and their status.
+![Tasks List](docs/images/tasks_list.png)
+
+### User Enrollment (Webcam Support)
+Register users with live webcam capture and auto-generated credentials.
+![User Creation](docs/images/create_user_webcam.png)
+
+### Face Approval
+Admin approval workflow for vendor face enrollment.
+![Pending Approvals](docs/images/pending_approvals.png)
+
+---
+
 ## Quick Start
 
 ### 1. Web Dashboard (Laravel)
