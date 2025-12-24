@@ -11,8 +11,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-from routers import faces
+from routers import faces, session
 app.include_router(faces.router)
+app.include_router(session.router)
 
 @app.get("/")
 def read_root():

@@ -9,3 +9,4 @@ opencv-python==4.8.1.78
 insightface==0.7.3
 requests==2.31.0
 Pillow
+httpx

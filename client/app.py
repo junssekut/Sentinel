@@ -70,6 +70,7 @@ class FaceClientApp:
         self.last_frame: Optional[np.ndarray] = None
         self.running = True
         self.verify_running = True
+        self.session_id: Optional[str] = None  # Session tracking
 
         self.cap = cv2.VideoCapture(CAMERA_INDEX)
         if not self.cap.isOpened():
@@ -84,6 +85,22 @@ class FaceClientApp:
 
         self._schedule_frame_update()
         self._schedule_verify()
+        
+        # Start a session on launch
+        threading.Thread(target=self._start_session, daemon=True).start()
+
+    def _start_session(self):
+        """Start a new access session with the server"""
+        try:
+            resp = requests.post(f"{SERVER_URL}/api/session/start", json={}, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                self.session_id = data.get("session_id")
+                self.status_var.set(f"Session started: {self.session_id}. Scan vendor faces.")
+            else:
+                self.status_var.set("Failed to start session")
+        except Exception as exc:
+            print(f"Session start error: {exc}")
 
     def _load_model(self):
         try:
@@ -205,34 +222,54 @@ class FaceClientApp:
         frame = self.last_frame
         if frame is None or not self.model_ready:
             return
+        if not self.session_id:
+            # No session, try to start one
+            self._start_session()
+            return
+            
         embedding = self._extract_embedding(frame)
         if embedding is None:
             return
             
-        # 1:N Identification
+        # Session-based scan
         payload = {
+            "session_id": self.session_id,
             "embedding": embedding.tolist(),
         }
         try:
-            # We use the new Identify endpoint
-            resp = requests.post(f"{SERVER_URL}/api/faces/identify", json=payload, timeout=5)
-            # We don't raise status yet, we parse result
+            resp = requests.post(f"{SERVER_URL}/api/session/scan", json=payload, timeout=5)
+            
+            if resp.status_code == 404:
+                # Session expired, start a new one
+                self.session_id = None
+                self.status_var.set("Session expired. Restarting...")
+                return
+            
             if resp.status_code != 200:
-                self.status_var.set(f"Error Server: {resp.status_code}")
+                self.status_var.set(f"Error: {resp.status_code}")
                 return
 
             data = resp.json()
-            if data.get("match"):
-                name = data.get('name')
-                role = data.get('role')
-                score = data.get('score')
-                self.status_var.set(f"IDENTIFIED: {name} ({role}) - Score: {score:.2f}")
-                # TODO: Trigger Door Unlock if authorized? 
-                # For now, we just identify.
+            state = data.get("state")
+            message = data.get("message", "")
+            vendors = data.get("vendors", [])
+            
+            # Update status based on session state
+            if state == "approved":
+                self.status_var.set(f"✅ ACCESS GRANTED! {message}")
+                # Session completed, start a new one after a delay
+                self.root.after(12000, self._start_session)  # Wait for door to close
+                self.session_id = None
+            elif state == "waiting_pic":
+                vendor_list = ", ".join(vendors) if vendors else "None"
+                self.status_var.set(f"Vendors: {vendor_list} | Waiting for PIC...")
+            elif state == "waiting_vendors":
+                self.status_var.set(f"Scan vendor faces. {message}")
             else:
-                self.status_var.set(f"Tidak dikenal (Score: {data.get('score'):.2f})")
+                self.status_var.set(message)
+                
         except Exception as exc:
-            print(f"Verify loop error: {exc}") # Don't spam UI
+            print(f"Verify loop error: {exc}")
 
 
     def on_close(self):
