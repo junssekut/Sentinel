@@ -1,0 +1,18 @@
+/*
+ * Configuration for Sentinel Door Lock IoT
+ * 
+ * Copy this file to config.h and fill in your values.
+ */
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// WiFi Credentials
+#define WIFI_SSID     "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
+
+// API Security
+// Must match the secret sent by the server in X-API-Secret header
+#define API_SECRET    "sentinel-iot-secret"
+
+#endif

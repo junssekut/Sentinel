@@ -15,14 +15,16 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
 # SQLAlchemy Connection URL
 if DB_CONNECTION == "sqlite":
-    # Laravel often uses absolute path in DB_DATABASE or just 'database.sqlite'
-    # SQLAlchemy needs sqlite:///path/to/db
+    # For SQLite, use the same database as Laravel (web/)
+    # so both FastAPI and Laravel share the same data
     if DB_DATABASE.startswith("/"):
+        # Absolute path specified
         SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_DATABASE}"
     else:
-        # Relative to server directory
+        # Relative path: use web/database/ folder (shared with Laravel)
         server_dir = os.path.dirname(__file__)
-        db_path = os.path.join(server_dir, DB_DATABASE)
+        project_root = os.path.dirname(server_dir)
+        db_path = os.path.join(project_root, "web", "database", DB_DATABASE)
         SQLALCHEMY_DATABASE_URL = f"sqlite:///{db_path}"
     
     # SQLite requires strict thread management usually, but for dev checks:

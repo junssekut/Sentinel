@@ -18,13 +18,14 @@ Sentinel is an **IoT Access Control System** for secure data center environments
 
 ### Architecture
 
-This monorepo contains three components:
+This monorepo contains four components:
 
 | Folder | Description | Tech Stack |
 |--------|-------------|------------|
 | [`/web`](web/) | Dashboard & Admin Panel | Laravel 12, Tailwind CSS |
 | [`/server`](server/) | Access Control API | FastAPI, Python 3.11+ |
 | [`/client`](client/) | Face Recognition Client | Python, InsightFace, Tkinter |
+| [`/solenoid`](solenoid/) | Door Lock IoT Actuator | ESP8266, Arduino |
 
 ---
 
