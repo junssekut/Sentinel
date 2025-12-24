@@ -13,6 +13,60 @@
     </x-slot>
 
     <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
+        
+        {{-- Generated Credentials Card (shown after user creation) --}}
+        @if(session('generated_password'))
+        <div class="mb-6 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl shadow-lg p-6 text-white">
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-bold mb-1">User Created Successfully!</h3>
+                    <p class="text-sm text-white/80 mb-4">Please save these credentials. The password cannot be recovered.</p>
+                    
+                    <div class="bg-white/10 backdrop-blur rounded-xl p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-white/70">Email:</span>
+                            <code class="bg-white/20 px-3 py-1 rounded-lg text-sm font-mono">{{ $user->email }}</code>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-white/70">Password:</span>
+                            <div class="flex items-center gap-2">
+                                <code id="generatedPassword" class="bg-white/20 px-3 py-1 rounded-lg text-sm font-mono">{{ session('generated_password') }}</code>
+                                <button onclick="copyPassword()" class="p-1.5 hover:bg-white/20 rounded-lg transition-colors" title="Copy password">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                        @if(session('enrollment_status'))
+                        <div class="flex items-center justify-between pt-2 border-t border-white/20">
+                            <span class="text-sm text-white/70">Face Enrollment:</span>
+                            @if(session('enrollment_status') === 'success')
+                            <span class="inline-flex items-center gap-1 px-2 py-1 bg-white/20 rounded-full text-xs font-bold">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                Processing
+                            </span>
+                            @else
+                            <span class="inline-flex items-center gap-1 px-2 py-1 bg-red-500/30 rounded-full text-xs font-bold">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                                Failed - Enroll Manually
+                            </span>
+                            @endif
+                        </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            function copyPassword() {
+                const password = document.getElementById('generatedPassword').textContent;
+                navigator.clipboard.writeText(password);
+                alert('Password copied to clipboard!');
+            }
+        </script>
+        @endif
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Profile Card -->
             <div class="lg:col-span-1">

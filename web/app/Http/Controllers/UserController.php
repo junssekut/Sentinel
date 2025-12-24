@@ -36,6 +36,9 @@ class UserController extends Controller
 
     /**
      * Store a newly created user.
+     * 
+     * Auto-generates a secure password and optionally enrolls face if provided.
+     * Since this is from admin dashboard, face is auto-approved (trusted source).
      */
     public function store(Request $request)
     {
@@ -44,21 +47,61 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => ['required', Password::defaults()],
             'role' => 'required|in:vendor,dcfm,soc,pic',
-            'face_image' => 'nullable|string', // Base64 encoded image (optional, enrolled via client)
+            'face_image' => 'nullable|string', // Base64 encoded image
         ]);
+
+        // Generate secure random password
+        $generatedPassword = Str::password(12);
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => $validated['password'],
+            'password' => $generatedPassword, // Will be hashed by model
             'role' => $validated['role'],
             'face_image' => $validated['face_image'] ?? null,
         ]);
 
-        return redirect()->route('users.index')
-            ->with('success', 'User created successfully.');
+        // If face_image provided, auto-enroll to FastAPI (trusted admin source)
+        $enrollmentStatus = null;
+        if (!empty($validated['face_image'])) {
+            $enrollmentStatus = $this->enrollToFastAPI($user);
+        }
+
+        // Store credentials in session to display on next page
+        return redirect()->route('users.show', $user)
+            ->with('success', 'User created successfully.')
+            ->with('generated_password', $generatedPassword)
+            ->with('enrollment_status', $enrollmentStatus);
+    }
+
+    /**
+     * Enroll user face to FastAPI server (auto-approved from admin).
+     */
+    private function enrollToFastAPI(User $user): string
+    {
+        try {
+            $serverUrl = env('FASTAPI_SERVER_URL', 'http://127.0.0.1:8001');
+            $apiSecret = env('API_SECRET', 'dev-secret');
+
+            $response = \Illuminate\Support\Facades\Http::timeout(30)
+                ->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}", [
+                    'name' => $user->name,
+                    'role' => $user->role,
+                    'face_image' => $user->face_image,
+                ]);
+
+            if ($response->successful()) {
+                \Log::info("User {$user->id} ({$user->name}) enrolled to FastAPI successfully.");
+                return 'success';
+            } else {
+                \Log::warning("Failed to enroll user {$user->id} to FastAPI: " . $response->body());
+                return 'failed';
+            }
+        } catch (\Exception $e) {
+            \Log::warning("Could not connect to FastAPI server: " . $e->getMessage());
+            return 'error';
+        }
     }
 
     /**
