@@ -27,6 +27,70 @@ This monorepo contains four components:
 | [`/client`](client/) | Face Recognition Client | Python, InsightFace, Tkinter |
 | [`/solenoid`](solenoid/) | Door Lock IoT Actuator | ESP8266, Arduino |
 
+### System Architecture
+
+```mermaid
+flowchart TB
+    subgraph Frontend["🖥️ Frontend"]
+        WEB["Web Dashboard<br/>(Laravel + Tailwind)"]
+    end
+
+    subgraph Backend["⚙️ Backend Services"]
+        API["FastAPI Server<br/>(Python)"]
+        DB[("MySQL<br/>Database")]
+    end
+
+    subgraph IoT["📡 IoT Devices"]
+        CLIENT["Face Recognition Client<br/>(InsightFace + Tkinter)"]
+        ESP["ESP8266 Solenoid<br/>(Door Lock)"]
+        CAM["📷 Webcam"]
+    end
+
+    WEB <-->|"HTTP API"| API
+    API <-->|"SQLAlchemy"| DB
+    
+    CLIENT -->|"Enroll/Verify Face"| API
+    CAM -->|"Video Feed"| CLIENT
+    
+    API -->|"Unlock/Lock Commands"| ESP
+    
+    WEB -->|"User Management<br/>Task Assignment"| DB
+    
+    style WEB fill:#FF2D20,color:#fff
+    style API fill:#009688,color:#fff
+    style DB fill:#00758F,color:#fff
+    style CLIENT fill:#306998,color:#fff
+    style ESP fill:#00979D,color:#fff
+```
+
+### Access Flow
+
+```mermaid
+sequenceDiagram
+    participant V as Vendor
+    participant C as Client (Camera)
+    participant S as FastAPI Server
+    participant P as PIC
+    participant D as Door Lock (ESP8266)
+
+    V->>C: Face detected
+    C->>S: Send embedding
+    S->>S: Identify vendor
+    S-->>C: Waiting for PIC
+    
+    P->>C: Face detected
+    C->>S: Send embedding
+    S->>S: Validate PIC + Vendor match
+    S->>D: POST /unlock
+    D->>D: Energize relay
+    S-->>C: ✅ Access Granted
+    
+    Note over S: Wait X seconds...
+    
+    S->>D: POST /lock
+    D->>D: De-energize relay
+```
+
 ---
 
 ## Screenshots
@@ -62,7 +126,7 @@ cd web
 composer install && npm install
 cp .env.example .env && php artisan key:generate
 php artisan migrate --seed
-npm run build && php artisan serve
+composer run dev
 ```
 
 ### 2. API Server (FastAPI)
