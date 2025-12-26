@@ -42,4 +42,4 @@ fi
 
 # Run the application
 echo "Starting Face Recognition Client..."
-python app.py
+python main.py
