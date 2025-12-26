@@ -30,6 +30,7 @@ MODEL_NAME = os.getenv("MODEL_NAME", "buffalo_l")
 DET_SIZE = int(os.getenv("DET_SIZE", "320"))
 
 MODEL_DIR = Path.home() / ".insightface"
+SCRIPT_DIR = Path(__file__).parent
 
 # ============================================================
 # Theme Configuration
@@ -146,16 +147,12 @@ class BentoCard(tk.Canvas):
         self.shadow_offset = shadow_offset
         
         # Draw the card graphics
-        self._draw_card()
+        self._draw_initial()
         
         # Create a frame inside to hold content
-        # We start it at a slight offset so it fits inside the card area
         self.container = tk.Frame(self, bg=self.bg_color)
         
         # Calculate available area for the inner container so it doesn't overlap borders/shadows
-        # x, y of the window in canvas coords
-        container_x = shadow_offset + 2
-        container_y = shadow_offset + 2 
         container_w = width - (shadow_offset * 3) 
         container_h = height - (shadow_offset * 3)
         
@@ -163,21 +160,17 @@ class BentoCard(tk.Canvas):
                            window=self.container, 
                            width=container_w, height=container_h)
 
-    def _draw_card(self):
-        self.delete("all")
-        
+    def _draw_initial(self):
         # 1. Shadow Layer (Lower right offset)
-        # We mimic a shadow by drawing a rounded rect in a transparent/grey color
-        # Note: Canvas transparency is tricky. We'll use a solid color that matches background mixed with black, 
-        # or just a light gray if actual alpha isn't perfect. Tkinter doesn't do real alpha on canvas items easily.
-        # So we use a solid light gray color for shadow representation.
         shadow_x1 = self.shadow_offset
         shadow_y1 = self.shadow_offset
         shadow_x2 = self.width
         shadow_y2 = self.height
         
-        self._create_rounded_rect(shadow_x1, shadow_y1, shadow_x2, shadow_y2, 
-                                  self.radius, fill="#D1D5DB", outline="")
+        self.shadow_item = self._create_rounded_rect(
+            shadow_x1, shadow_y1, shadow_x2, shadow_y2, 
+            self.radius, fill="#D1D5DB", outline=""
+        )
 
         # 2. Main Card Layer (Top left)
         card_x1 = 0
@@ -185,8 +178,15 @@ class BentoCard(tk.Canvas):
         card_x2 = self.width - self.shadow_offset
         card_y2 = self.height - self.shadow_offset
         
-        self._create_rounded_rect(card_x1, card_y1, card_x2, card_y2, 
-                                  self.radius, fill=self.bg_color, outline="")
+        self.card_item = self._create_rounded_rect(
+            card_x1, card_y1, card_x2, card_y2, 
+            self.radius, fill=self.bg_color, outline=""
+        )
+
+    def set_background_color(self, color):
+        self.bg_color = color
+        self.itemconfig(self.card_item, fill=color)
+        self.container.configure(bg=color)
 
     def _create_rounded_rect(self, x1, y1, x2, y2, r, **kwargs):
         points = [
@@ -207,10 +207,9 @@ class FaceClientApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.configure(bg=COLORS["bg_window"])
         
-        # FIXED Window Size - Large and non-resizable as requested
-        # 1100x720 is a good size to fit everything comfortably
+        # FIXED Window Size - Tall enough to fit all content without scrolling
         window_width = 1100
-        window_height = 720
+        window_height = 820
         self.root.geometry(f"{window_width}x{window_height}")
         self.root.resizable(False, False)
         
@@ -220,6 +219,15 @@ class FaceClientApp:
         pos_x = (screen_width - window_width) // 2
         pos_y = (screen_height - window_height) // 2
         self.root.geometry(f"+{pos_x}+{pos_y}")
+        
+        # Set window icon
+        try:
+            icon_path = SCRIPT_DIR / "sentinel-logo.png"
+            icon_img = Image.open(icon_path)
+            self.icon_photo = ImageTk.PhotoImage(icon_img)
+            self.root.iconphoto(True, self.icon_photo)
+        except Exception as e:
+            print(f"Could not set window icon: {e}")
         
         # Check if custom font is available
         self._check_fonts()
@@ -232,6 +240,8 @@ class FaceClientApp:
         self.running = True
         self.verify_running = True
         self.session_id: Optional[str] = None
+        self.session_expires_at: Optional[float] = None  # Unix timestamp
+        self.detected_vendors: list = []  # List of vendor names
 
         # Camera
         self.cap = cv2.VideoCapture(CAMERA_INDEX)
@@ -250,6 +260,10 @@ class FaceClientApp:
         
         # Start session
         threading.Thread(target=self._start_session, daemon=True).start()
+        
+        # Bring window to front on startup
+        self.root.lift()
+        self.root.focus_force()
 
     def _check_fonts(self):
         """Check if custom font is available"""
@@ -263,6 +277,38 @@ class FaceClientApp:
                     break
             else:
                 FONT_FAMILY = "Helvetica"
+
+    def _detect_cameras(self) -> dict:
+        """Detect available cameras and return a dict of {index: name}."""
+        cameras = {}
+        # Check first 5 camera indices
+        for i in range(5):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                # Get camera name if available (macOS/Windows)
+                cameras[i] = f"Camera {i}"
+                cap.release()
+        return cameras if cameras else {0: "Camera 0"}
+
+    def _on_camera_change(self, event):
+        """Handle camera selection change."""
+        selected = self.camera_var.get()
+        # Find the index from the name
+        new_index = None
+        for idx, name in self.available_cameras.items():
+            if name == selected:
+                new_index = idx
+                break
+        
+        if new_index is not None and hasattr(self, 'cap') and self.cap:
+            # Release current camera
+            self.cap.release()
+            # Open new camera
+            self.cap = cv2.VideoCapture(new_index)
+            if self.cap.isOpened():
+                self._update_status(f"Switched to Camera {new_index}", "info")
+            else:
+                self._update_status(f"Failed to open Camera {new_index}", "error")
 
     def _build_ui(self):
         """
@@ -281,15 +327,18 @@ class FaceClientApp:
         main_pad.rowconfigure(0, weight=1)
 
         # =========================================================
-        # LEFT COLUMN (Video Feed)
+        # LEFT COLUMN (Video Feed + Camera Selector)
         # =========================================================
-        # We want the video card to take full height roughly
-        video_card_h = 640
-        video_card_w = 660 # Approx width
+        left_col = tk.Frame(main_pad, bg=COLORS["bg_window"])
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
         
-        self.video_card = BentoCard(main_pad, width=video_card_w, height=video_card_h, 
+        # Video Card
+        video_card_h = 680
+        video_card_w = 580 # Reduced to fit with right column
+        
+        self.video_card = BentoCard(left_col, width=video_card_w, height=video_card_h, 
                                     bg_color=COLORS["bg_card"], radius=24)
-        self.video_card.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
+        self.video_card.pack(fill=tk.BOTH, expand=True)
         
         # Inside Video Card
         self.video_label = tk.Label(
@@ -299,18 +348,39 @@ class FaceClientApp:
             font=get_font(14),
             fg=COLORS["text_secondary"]
         )
-        # We'll pack it to fill the card's container
         self.video_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+        
+        # Camera Selector (OUTSIDE the video card)
+        camera_frame = tk.Frame(left_col, bg=COLORS["bg_window"])
+        camera_frame.pack(fill=tk.X, pady=(15, 0))
+        
+        tk.Label(camera_frame, text="Camera:", font=get_font(11), 
+                 fg=COLORS["text_secondary"], bg=COLORS["bg_window"]).pack(side=tk.LEFT)
+        
+        # Detect available cameras
+        self.available_cameras = self._detect_cameras()
+        self.camera_var = tk.StringVar(value=self.available_cameras.get(CAMERA_INDEX, f"Camera {CAMERA_INDEX}"))
+        
+        camera_options = list(self.available_cameras.values()) if self.available_cameras else ["Camera 0"]
+        self.camera_dropdown = ttk.Combobox(
+            camera_frame, 
+            textvariable=self.camera_var,
+            values=camera_options,
+            state="readonly",
+            width=30
+        )
+        self.camera_dropdown.pack(side=tk.LEFT, padx=(10, 0))
+        self.camera_dropdown.bind("<<ComboboxSelected>>", self._on_camera_change)
 
         # =========================================================
-        # RIGHT COLUMN (Stack: Header, Status, Controls)
+        # RIGHT COLUMN (Stack: Header, Status, Session, Vendors, Controls)
         # =========================================================
         right_col = tk.Frame(main_pad, bg=COLORS["bg_window"])
         right_col.grid(row=0, column=1, sticky="nsew")
         
         # 1. Header Card (Small height)
         header_h = 100
-        header_w = 340 # auto width really, but passed to card init
+        header_w = 400 # Wider for better readability
         self.header_card = BentoCard(right_col, width=header_w, height=header_h, radius=20)
         self.header_card.pack(fill=tk.X, pady=(0, 20))
         
@@ -318,37 +388,85 @@ class FaceClientApp:
         header_inner = tk.Frame(self.header_card.container, bg=COLORS["bg_card"])
         header_inner.pack(fill=tk.BOTH, expand=True, padx=15)
         
+        # Logo + Title Container
+        logo_title_frame = tk.Frame(header_inner, bg=COLORS["bg_card"])
+        logo_title_frame.pack(expand=True)
+        
+        # Logo
+        try:
+            logo_path = SCRIPT_DIR / "sentinel-logo.png"
+            pil_img = Image.open(logo_path)
+            # Resize nicely
+            pil_img.thumbnail((50, 50), Image.Resampling.LANCZOS)
+            self.logo_img = ImageTk.PhotoImage(pil_img)
+            logo_lbl = tk.Label(logo_title_frame, image=self.logo_img, bg=COLORS["bg_card"])
+            logo_lbl.pack(side=tk.LEFT, padx=(0, 15))
+        except Exception as e:
+            print(f"Could not load logo: {e}")
+            # Fallback if image missing
+            
         title_lbl = tk.Label(
-            header_inner, 
+            logo_title_frame, 
             text="Sentinel Access", 
             font=get_font(24, "bold"), 
             fg=COLORS["accent"],
             bg=COLORS["bg_card"]
         )
-        title_lbl.pack(side=tk.LEFT, pady=25)
+        title_lbl.pack(side=tk.LEFT)
 
-        # 2. Status Card (Medium height, VERY BIG TEXT)
-        status_h = 180
+        # 2. Status Card (Reduced height)
+        status_h = 100
         self.status_card = BentoCard(right_col, width=header_w, height=status_h, 
                                      bg_color=COLORS["accent_light"], radius=20)
-        self.status_card.pack(fill=tk.X, pady=(0, 20))
+        self.status_card.pack(fill=tk.X, pady=(0, 15))
         
         self.status_var = tk.StringVar(value="Initializing...")
         self.status_label = tk.Label(
             self.status_card.container,
             textvariable=self.status_var,
-            font=get_font(22, "bold"),  # Much bigger font as requested
+            font=get_font(18, "bold"),
             fg=COLORS["accent"],
             bg=COLORS["accent_light"],
             wraplength=300,
             justify="center"
         )
-        self.status_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+        self.status_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=5)
 
-        # 3. Controls Card (Remaining height)
-        controls_h = 320
+        # 3. Session Info Card (NEW)
+        session_h = 80
+        self.session_card = BentoCard(right_col, width=header_w, height=session_h, radius=20)
+        self.session_card.pack(fill=tk.X, pady=(0, 15))
+        
+        session_inner = tk.Frame(self.session_card.container, bg=COLORS["bg_card"])
+        session_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        
+        tk.Label(session_inner, text="Session", font=get_font(11, "bold"),
+                 fg=COLORS["text_secondary"], bg=COLORS["bg_card"]).pack(anchor="w")
+        
+        self.session_info_var = tk.StringVar(value="No active session")
+        tk.Label(session_inner, textvariable=self.session_info_var, font=get_font(12),
+                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w")
+
+        # 4. Vendors Detected Card (NEW)
+        vendors_h = 100
+        self.vendors_card = BentoCard(right_col, width=header_w, height=vendors_h, radius=20)
+        self.vendors_card.pack(fill=tk.X, pady=(0, 15))
+        
+        vendors_inner = tk.Frame(self.vendors_card.container, bg=COLORS["bg_card"])
+        vendors_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        
+        tk.Label(vendors_inner, text="Vendors Detected", font=get_font(11, "bold"),
+                 fg=COLORS["text_secondary"], bg=COLORS["bg_card"]).pack(anchor="w")
+        
+        self.vendors_list_var = tk.StringVar(value="None yet")
+        tk.Label(vendors_inner, textvariable=self.vendors_list_var, font=get_font(12),
+                 fg=COLORS["text_primary"], bg=COLORS["bg_card"], wraplength=280,
+                 justify="left").pack(anchor="w")
+
+        # 5. Controls Card (Remaining height)
+        controls_h = 260
         self.controls_card = BentoCard(right_col, width=header_w, height=controls_h, radius=20)
-        self.controls_card.pack(fill=tk.BOTH, expand=True) # Fill remaining vertical space
+        self.controls_card.pack(fill=tk.BOTH, expand=True)
         
         # Content for Controls
         controls_inner = tk.Frame(self.controls_card.container, bg=COLORS["bg_card"])
@@ -440,11 +558,8 @@ class FaceClientApp:
         # Update the label and the card background
         self.status_label.configure(fg=fg, bg=bg)
         
-        # To update the BentoCard background, we need to redraw it
-        self.status_card.bg_color = bg
-        self.status_card._draw_card()
-        # Also update the container frame bg
-        self.status_card.container.configure(bg=bg)
+        # Use the optimized update method that preserves the container window
+        self.status_card.set_background_color(bg)
 
     def _start_session(self):
         try:
@@ -452,11 +567,42 @@ class FaceClientApp:
             if resp.status_code == 200:
                 data = resp.json()
                 self.session_id = data.get("session_id")
+                # Set session expiry (assume 60 seconds from server, adjust as needed)
+                self.session_expires_at = time.time() + 60
+                self.detected_vendors = []
+                self._update_session_info()
+                self._update_vendors_list()
                 self._update_status(f"Session Active\nScan to Verify", "info")
             else:
                 self._update_status("Failed to Start Session", "warning")
+                self.session_info_var.set("No active session")
         except Exception as exc:
             print(f"Session start error: {exc}")
+
+    def _update_session_info(self):
+        """Update the session info card with current session state."""
+        if self.session_id and self.session_expires_at:
+            remaining = int(self.session_expires_at - time.time())
+            if remaining > 0:
+                self.session_info_var.set(f"ID: {self.session_id[:8]}... • Expires in {remaining}s")
+            else:
+                # Session expired - auto reset
+                self.session_info_var.set("Session expired • Restarting...")
+                self.session_id = None
+                self.session_expires_at = None
+                self.detected_vendors = []
+                self._update_vendors_list()
+                # Schedule a new session start
+                self.root.after(1000, lambda: threading.Thread(target=self._start_session, daemon=True).start())
+        else:
+            self.session_info_var.set("No active session")
+
+    def _update_vendors_list(self):
+        """Update the vendors list card."""
+        if self.detected_vendors:
+            self.vendors_list_var.set(", ".join(self.detected_vendors))
+        else:
+            self.vendors_list_var.set("None yet")
 
     def _load_model(self):
         try:
@@ -642,6 +788,10 @@ class FaceClientApp:
             
             if resp.status_code == 404:
                 self.session_id = None
+                self.session_expires_at = None
+                self.detected_vendors = []
+                self._update_session_info()
+                self._update_vendors_list()
                 self._update_status("Session Expired\nRestarting...", "warning")
                 return
             
@@ -653,12 +803,23 @@ class FaceClientApp:
             message = data.get("message", "")
             vendors = data.get("vendors", [])
             
+            # Update detected vendors list
+            if vendors:
+                self.detected_vendors = vendors
+                self._update_vendors_list()
+            
+            # Update session info (refresh countdown)
+            self._update_session_info()
+            
             if state == "approved":
                 self._update_status(f"ACCESS GRANTED\n{message}", "success")
+                self.detected_vendors = []
+                self._update_vendors_list()
+                self.session_info_var.set("Session approved!")
                 self.root.after(12000, self._start_session)
                 self.session_id = None
+                self.session_expires_at = None
             elif state == "waiting_pic":
-                vendor_list = ", ".join(vendors) if vendors else "None"
                 self._update_status(f"Vendors Scanned\nWaiting for PIC...", "warning")
             elif state == "waiting_vendors":
                 self._update_status(f"Scan Vendors\n{message}", "info")
