@@ -17,6 +17,7 @@ from insightface.app import FaceAnalysis
 from PIL import Image, ImageTk, ImageDraw
 import tkinter as tk
 from tkinter import ttk, messagebox
+import tkinter.font as tkfont
 
 load_dotenv()
 
@@ -31,25 +32,102 @@ DET_SIZE = int(os.getenv("DET_SIZE", "320"))
 MODEL_DIR = Path.home() / ".insightface"
 
 # ============================================================
-# Theme Configuration
+# Theme Configuration - Light Theme with Blue Accent
 # ============================================================
 
 COLORS = {
-    "bg_dark": "#0f0f1a",
-    "bg_card": "#1a1a2e",
-    "bg_input": "#252542",
-    "text_primary": "#ffffff",
-    "text_secondary": "#8888aa",
-    "accent": "#00d4aa",
-    "accent_hover": "#00b894",
-    "danger": "#ff6b6b",
-    "warning": "#feca57",
-    "success": "#00d4aa",
-    "border": "#2a2a4a",
+    "bg_primary": "#FFFFFF",
+    "bg_secondary": "#F5F7FA",
+    "bg_card": "#FFFFFF",
+    "text_primary": "#1A1A2E",
+    "text_secondary": "#6B7280",
+    "accent": "#0066AE",
+    "accent_hover": "#004D82",
+    "accent_light": "#E6F0F8",
+    "success": "#10B981",
+    "success_bg": "#ECFDF5",
+    "warning": "#F59E0B",
+    "warning_bg": "#FFFBEB",
+    "danger": "#EF4444",
+    "danger_bg": "#FEF2F2",
+    "border": "#E5E7EB",
+    "shadow": "#00000015",
 }
 
-VIDEO_WIDTH = 640
-VIDEO_HEIGHT = 480
+VIDEO_WIDTH = 580
+VIDEO_HEIGHT = 360
+
+# Custom font - try BricolageGrotesque, fallback to system fonts
+FONT_FAMILY = "BricolageGrotesque"
+FONT_FALLBACK = ("SF Pro Display", "Segoe UI", "Helvetica Neue", "Helvetica", "Arial")
+
+
+def get_font(size: int, weight: str = "normal") -> tuple:
+    """Get font tuple, trying custom font first then fallbacks"""
+    return (FONT_FAMILY, size, weight)
+
+
+class RoundedButton(tk.Canvas):
+    """Custom rounded button using Canvas"""
+    
+    def __init__(self, parent, text, command, bg_color, fg_color, 
+                 hover_color, width=160, height=44, radius=12, font_size=12, **kwargs):
+        super().__init__(parent, width=width, height=height, 
+                        bg=parent.cget("bg"), highlightthickness=0, **kwargs)
+        
+        self.command = command
+        self.bg_color = bg_color
+        self.fg_color = fg_color
+        self.hover_color = hover_color
+        self.current_bg = bg_color
+        self.width = width
+        self.height = height
+        self.radius = radius
+        self.text = text
+        self.font_size = font_size
+        
+        self._draw()
+        
+        self.bind("<Enter>", self._on_enter)
+        self.bind("<Leave>", self._on_leave)
+        self.bind("<Button-1>", self._on_click)
+    
+    def _draw(self):
+        self.delete("all")
+        # Draw rounded rectangle
+        self._create_rounded_rect(2, 2, self.width-2, self.height-2, 
+                                  self.radius, fill=self.current_bg, outline="")
+        # Draw text
+        self.create_text(self.width//2, self.height//2, text=self.text,
+                        fill=self.fg_color, font=get_font(self.font_size, "bold"))
+    
+    def _create_rounded_rect(self, x1, y1, x2, y2, r, **kwargs):
+        points = [
+            x1+r, y1, x2-r, y1,
+            x2, y1, x2, y1+r,
+            x2, y2-r, x2, y2,
+            x2-r, y2, x1+r, y2,
+            x1, y2, x1, y2-r,
+            x1, y1+r, x1, y1,
+        ]
+        return self.create_polygon(points, smooth=True, **kwargs)
+    
+    def _on_enter(self, event):
+        self.current_bg = self.hover_color
+        self._draw()
+        self.config(cursor="hand2")
+    
+    def _on_leave(self, event):
+        self.current_bg = self.bg_color
+        self._draw()
+    
+    def _on_click(self, event):
+        if self.command:
+            self.command()
+    
+    def set_text(self, text):
+        self.text = text
+        self._draw()
 
 
 class FaceClientApp:
@@ -57,20 +135,20 @@ class FaceClientApp:
         self.root = root
         self.root.title("Sentinel Face Recognition")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-        self.root.configure(bg=COLORS["bg_dark"])
-        self.root.resizable(False, False)
+        self.root.configure(bg=COLORS["bg_primary"])
+        self.root.resizable(True, True)
         
-        # Center window on screen
-        window_width = 720
-        window_height = 700
+        # Center window on screen - more compact
+        window_width = 680
+        window_height = 620
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
         x = (screen_width - window_width) // 2
         y = (screen_height - window_height) // 2
         self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
         
-        # Configure ttk styles
-        self._setup_styles()
+        # Check if custom font is available
+        self._check_fonts()
         
         # Build UI
         self._build_ui()
@@ -99,151 +177,134 @@ class FaceClientApp:
         # Start session
         threading.Thread(target=self._start_session, daemon=True).start()
 
-    def _setup_styles(self):
-        style = ttk.Style()
-        style.theme_use("clam")
-        
-        # Main button style
-        style.configure(
-            "Accent.TButton",
-            background=COLORS["accent"],
-            foreground=COLORS["bg_dark"],
-            font=("Helvetica", 12, "bold"),
-            padding=(20, 12),
-            borderwidth=0,
-        )
-        style.map(
-            "Accent.TButton",
-            background=[("active", COLORS["accent_hover"])],
-        )
-        
-        # Secondary button style
-        style.configure(
-            "Secondary.TButton",
-            background=COLORS["bg_input"],
-            foreground=COLORS["text_primary"],
-            font=("Helvetica", 11),
-            padding=(16, 10),
-            borderwidth=0,
-        )
-        style.map(
-            "Secondary.TButton",
-            background=[("active", COLORS["border"])],
-        )
-        
-        # Entry style
-        style.configure(
-            "Dark.TEntry",
-            fieldbackground=COLORS["bg_input"],
-            foreground=COLORS["text_primary"],
-            insertcolor=COLORS["text_primary"],
-            padding=10,
-        )
-        
-        # Radiobutton style
-        style.configure(
-            "Dark.TRadiobutton",
-            background=COLORS["bg_card"],
-            foreground=COLORS["text_primary"],
-            font=("Helvetica", 11),
-            padding=8,
-        )
+    def _check_fonts(self):
+        """Check if custom font is available"""
+        available_fonts = tkfont.families()
+        global FONT_FAMILY
+        if FONT_FAMILY not in available_fonts:
+            # Try fallbacks
+            for fallback in FONT_FALLBACK:
+                if fallback in available_fonts:
+                    FONT_FAMILY = fallback
+                    break
+            else:
+                FONT_FAMILY = "Helvetica"
 
     def _build_ui(self):
-        # Main container
-        main_frame = tk.Frame(self.root, bg=COLORS["bg_dark"])
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        # Main container with padding
+        main_frame = tk.Frame(self.root, bg=COLORS["bg_primary"])
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=25)
         
-        # Title
+        # Header with logo/title
+        header_frame = tk.Frame(main_frame, bg=COLORS["bg_primary"])
+        header_frame.pack(fill=tk.X, pady=(0, 20))
+        
         title_label = tk.Label(
-            main_frame,
+            header_frame,
             text="🔐 Sentinel Access",
-            font=("Helvetica", 24, "bold"),
-            fg=COLORS["text_primary"],
-            bg=COLORS["bg_dark"],
+            font=get_font(28, "bold"),
+            fg=COLORS["accent"],
+            bg=COLORS["bg_primary"],
         )
-        title_label.pack(pady=(0, 15))
+        title_label.pack()
         
-        # Video container with border effect
-        video_container = tk.Frame(
-            main_frame,
-            bg=COLORS["border"],
-            padx=3,
-            pady=3,
+        subtitle_label = tk.Label(
+            header_frame,
+            text="Face Recognition Access Control",
+            font=get_font(12),
+            fg=COLORS["text_secondary"],
+            bg=COLORS["bg_primary"],
         )
+        subtitle_label.pack()
+        
+        # Video container with rounded border effect
+        video_outer = tk.Frame(main_frame, bg=COLORS["border"], padx=2, pady=2)
+        video_outer.pack()
+        
+        video_container = tk.Frame(video_outer, bg=COLORS["bg_card"])
         video_container.pack()
         
         self.video_label = tk.Label(
             video_container,
-            bg=COLORS["bg_card"],
+            bg=COLORS["bg_secondary"],
             width=VIDEO_WIDTH,
             height=VIDEO_HEIGHT,
         )
-        self.video_label.pack()
+        self.video_label.pack(padx=8, pady=8)
         
-        # Status bar
-        self.status_frame = tk.Frame(main_frame, bg=COLORS["bg_card"], height=50)
-        self.status_frame.pack(fill=tk.X, pady=(15, 10))
-        self.status_frame.pack_propagate(False)
+        # Status bar with rounded appearance
+        status_container = tk.Frame(main_frame, bg=COLORS["bg_primary"])
+        status_container.pack(fill=tk.X, pady=(15, 15))
+        
+        self.status_frame = tk.Frame(
+            status_container, 
+            bg=COLORS["accent_light"],
+            padx=20,
+            pady=12,
+        )
+        self.status_frame.pack(fill=tk.X)
         
         self.status_var = tk.StringVar(value="Initializing...")
         self.status_label = tk.Label(
             self.status_frame,
             textvariable=self.status_var,
-            font=("Helvetica", 12),
-            fg=COLORS["text_primary"],
-            bg=COLORS["bg_card"],
-            pady=12,
+            font=get_font(12),
+            fg=COLORS["accent"],
+            bg=COLORS["accent_light"],
         )
-        self.status_label.pack(fill=tk.X)
+        self.status_label.pack()
         
         # Form container
-        form_frame = tk.Frame(main_frame, bg=COLORS["bg_dark"])
+        form_frame = tk.Frame(main_frame, bg=COLORS["bg_primary"])
         form_frame.pack(fill=tk.X, pady=10)
         
         # Name input row
-        name_row = tk.Frame(form_frame, bg=COLORS["bg_dark"])
-        name_row.pack(fill=tk.X, pady=5)
+        name_row = tk.Frame(form_frame, bg=COLORS["bg_primary"])
+        name_row.pack(fill=tk.X, pady=8)
         
         tk.Label(
             name_row,
             text="Name",
-            font=("Helvetica", 12),
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_dark"],
-            width=8,
-            anchor="e",
-        ).pack(side=tk.LEFT, padx=(0, 10))
+            font=get_font(13, "bold"),
+            fg=COLORS["text_primary"],
+            bg=COLORS["bg_primary"],
+            width=6,
+            anchor="w",
+        ).pack(side=tk.LEFT)
+        
+        # Entry with border frame for rounded effect
+        entry_border = tk.Frame(name_row, bg=COLORS["border"], padx=1, pady=1)
+        entry_border.pack(side=tk.LEFT, padx=(10, 0))
         
         self.name_entry = tk.Entry(
-            name_row,
-            font=("Helvetica", 12),
-            bg=COLORS["bg_input"],
+            entry_border,
+            font=get_font(12),
+            bg=COLORS["bg_primary"],
             fg=COLORS["text_primary"],
-            insertbackground=COLORS["text_primary"],
+            insertbackground=COLORS["accent"],
             relief=tk.FLAT,
-            width=30,
+            width=35,
         )
-        self.name_entry.pack(side=tk.LEFT, ipady=8, ipadx=8)
+        self.name_entry.pack(ipady=10, ipadx=12)
         
         # Role selection row
-        role_row = tk.Frame(form_frame, bg=COLORS["bg_dark"])
-        role_row.pack(fill=tk.X, pady=10)
+        role_row = tk.Frame(form_frame, bg=COLORS["bg_primary"])
+        role_row.pack(fill=tk.X, pady=8)
         
         tk.Label(
             role_row,
             text="Role",
-            font=("Helvetica", 12),
-            fg=COLORS["text_secondary"],
-            bg=COLORS["bg_dark"],
-            width=8,
-            anchor="e",
-        ).pack(side=tk.LEFT, padx=(0, 10))
+            font=get_font(13, "bold"),
+            fg=COLORS["text_primary"],
+            bg=COLORS["bg_primary"],
+            width=6,
+            anchor="w",
+        ).pack(side=tk.LEFT)
         
         self.role_var = tk.StringVar(value="vendor")
         
-        role_options = tk.Frame(role_row, bg=COLORS["bg_dark"])
-        role_options.pack(side=tk.LEFT)
+        role_options = tk.Frame(role_row, bg=COLORS["bg_primary"])
+        role_options.pack(side=tk.LEFT, padx=(10, 0))
         
         for text, value in [("Vendor", "vendor"), ("PIC", "pic")]:
             rb = tk.Radiobutton(
@@ -251,72 +312,68 @@ class FaceClientApp:
                 text=text,
                 variable=self.role_var,
                 value=value,
-                font=("Helvetica", 11),
+                font=get_font(12),
                 fg=COLORS["text_primary"],
-                bg=COLORS["bg_dark"],
-                selectcolor=COLORS["bg_input"],
-                activebackground=COLORS["bg_dark"],
+                bg=COLORS["bg_primary"],
+                selectcolor=COLORS["accent_light"],
+                activebackground=COLORS["bg_primary"],
                 activeforeground=COLORS["accent"],
                 highlightthickness=0,
+                padx=10,
             )
-            rb.pack(side=tk.LEFT, padx=10)
+            rb.pack(side=tk.LEFT, padx=(0, 15))
         
-        # Buttons row
-        btn_frame = tk.Frame(main_frame, bg=COLORS["bg_dark"])
-        btn_frame.pack(pady=15)
+        # Buttons row with custom rounded buttons
+        btn_frame = tk.Frame(main_frame, bg=COLORS["bg_primary"])
+        btn_frame.pack(pady=20)
         
-        self.enroll_btn = tk.Button(
+        self.enroll_btn = RoundedButton(
             btn_frame,
-            text="📷  Enroll Face",
-            font=("Helvetica", 12, "bold"),
-            bg=COLORS["accent"],
-            fg=COLORS["bg_dark"],
-            activebackground=COLORS["accent_hover"],
-            activeforeground=COLORS["bg_dark"],
-            relief=tk.FLAT,
-            padx=25,
-            pady=12,
-            cursor="hand2",
+            text="📷 Enroll Face",
             command=self.enroll_face,
+            bg_color=COLORS["accent"],
+            fg_color="#FFFFFF",
+            hover_color=COLORS["accent_hover"],
+            width=180,
+            height=48,
+            radius=24,
+            font_size=13,
         )
-        self.enroll_btn.pack(side=tk.LEFT, padx=8)
+        self.enroll_btn.pack(side=tk.LEFT, padx=10)
         
-        self.verify_btn = tk.Button(
+        self.verify_btn = RoundedButton(
             btn_frame,
-            text="⏸  Stop Verify",
-            font=("Helvetica", 11),
-            bg=COLORS["bg_input"],
-            fg=COLORS["text_primary"],
-            activebackground=COLORS["border"],
-            activeforeground=COLORS["text_primary"],
-            relief=tk.FLAT,
-            padx=20,
-            pady=12,
-            cursor="hand2",
+            text="⏸ Stop Verify",
             command=self.toggle_verify,
+            bg_color=COLORS["bg_secondary"],
+            fg_color=COLORS["text_primary"],
+            hover_color=COLORS["border"],
+            width=160,
+            height=48,
+            radius=24,
+            font_size=12,
         )
-        self.verify_btn.pack(side=tk.LEFT, padx=8)
+        self.verify_btn.pack(side=tk.LEFT, padx=10)
 
     def _update_status(self, message: str, status_type: str = "info"):
         """Update status with color based on type"""
-        color_map = {
-            "info": COLORS["text_primary"],
+        bg_map = {
+            "info": COLORS["accent_light"],
+            "success": COLORS["success_bg"],
+            "warning": COLORS["warning_bg"],
+            "error": COLORS["danger_bg"],
+        }
+        fg_map = {
+            "info": COLORS["accent"],
             "success": COLORS["success"],
             "warning": COLORS["warning"],
             "error": COLORS["danger"],
         }
-        bg_map = {
-            "info": COLORS["bg_card"],
-            "success": "#0a2922",
-            "warning": "#2a2510",
-            "error": "#2a1515",
-        }
         self.status_var.set(message)
-        self.status_label.configure(
-            fg=color_map.get(status_type, COLORS["text_primary"]),
-            bg=bg_map.get(status_type, COLORS["bg_card"]),
-        )
-        self.status_frame.configure(bg=bg_map.get(status_type, COLORS["bg_card"]))
+        bg = bg_map.get(status_type, COLORS["accent_light"])
+        fg = fg_map.get(status_type, COLORS["accent"])
+        self.status_label.configure(fg=fg, bg=bg)
+        self.status_frame.configure(bg=bg)
 
     def _start_session(self):
         try:
@@ -324,7 +381,7 @@ class FaceClientApp:
             if resp.status_code == 200:
                 data = resp.json()
                 self.session_id = data.get("session_id")
-                self._update_status(f"Session: {self.session_id[:8]}... | Scan faces to verify", "info")
+                self._update_status(f"Session active • Scan faces to verify", "info")
             else:
                 self._update_status("Failed to start session", "warning")
         except Exception as exc:
@@ -336,7 +393,7 @@ class FaceClientApp:
             self.app = FaceAnalysis(name=MODEL_NAME, root=MODEL_DIR)
             self.app.prepare(ctx_id=-1, det_size=(DET_SIZE, DET_SIZE))
             self.model_ready = True
-            self._update_status("✓ Model ready. Verification active.", "success")
+            self._update_status("✓ Model ready • Verification active", "success")
         except Exception as exc:
             if MODEL_NAME != "buffalo_s":
                 try:
@@ -345,7 +402,7 @@ class FaceClientApp:
                     self.app = FaceAnalysis(name=fallback, root=MODEL_DIR)
                     self.app.prepare(ctx_id=-1, det_size=(DET_SIZE, DET_SIZE))
                     self.model_ready = True
-                    self._update_status("✓ Model ready (fallback).", "success")
+                    self._update_status("✓ Model ready (fallback)", "success")
                     return
                 except Exception as exc_fb:
                     self._update_status(f"Model load failed: {exc_fb}", "error")
@@ -379,8 +436,8 @@ class FaceClientApp:
             new_size = (int(img_width * ratio), int(img_height * ratio))
             img = img.resize(new_size, Image.Resampling.LANCZOS)
             
-            # Center on canvas
-            canvas = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), COLORS["bg_card"])
+            # Center on canvas with light gray background
+            canvas = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), COLORS["bg_secondary"])
             offset = ((VIDEO_WIDTH - new_size[0]) // 2, (VIDEO_HEIGHT - new_size[1]) // 2)
             canvas.paste(img, offset)
             
@@ -399,10 +456,10 @@ class FaceClientApp:
     def toggle_verify(self):
         self.verify_running = not self.verify_running
         if self.verify_running:
-            self.verify_btn.configure(text="⏸  Stop Verify")
+            self.verify_btn.set_text("⏸ Stop Verify")
             self._update_status("Verification resumed", "info")
         else:
-            self.verify_btn.configure(text="▶  Start Verify")
+            self.verify_btn.set_text("▶ Start Verify")
             self._update_status("Verification paused", "warning")
 
     def _extract_embedding(self, frame: np.ndarray) -> Optional[np.ndarray]:
@@ -504,9 +561,9 @@ class FaceClientApp:
                 self.session_id = None
             elif state == "waiting_pic":
                 vendor_list = ", ".join(vendors) if vendors else "None"
-                self._update_status(f"Vendors: {vendor_list} | Waiting for PIC...", "warning")
+                self._update_status(f"Vendors: {vendor_list} • Waiting for PIC...", "warning")
             elif state == "waiting_vendors":
-                self._update_status(f"Scan vendor faces. {message}", "info")
+                self._update_status(f"Scan vendor faces • {message}", "info")
             else:
                 self._update_status(message, "info")
                 
