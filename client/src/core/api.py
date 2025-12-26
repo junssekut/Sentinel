@@ -10,11 +10,14 @@ class SentinelAPI:
         try:
             resp = requests.post(f"{self.server_url}/api/session/start", json={}, timeout=5)
             if resp.status_code == 200:
-                return resp.json()
-            return None
+                return {"success": True, "data": resp.json()}
+            return {"success": False, "error": f"Server returned {resp.status_code}"}
+        except requests.exceptions.ConnectionError as e:
+            return {"success": False, "error": f"Connection refused to {self.server_url}/api/session/start"}
+        except requests.exceptions.Timeout:
+            return {"success": False, "error": f"Connection timeout to {self.server_url}"}
         except Exception as e:
-            print(f"API Error (start_session): {e}")
-            return None
+            return {"success": False, "error": str(e)}
 
     def enroll_face(self, payload):
         """Enroll a new face."""

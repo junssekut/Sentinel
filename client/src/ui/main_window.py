@@ -283,8 +283,9 @@ class FaceClientApp:
         self.status_card.set_background_color(bg)
 
     def _start_session(self):
-        data = self.api.start_session()
-        if data:
+        result = self.api.start_session()
+        if result.get("success"):
+            data = result.get("data")
             self.session_id = data.get("session_id")
             self.session_expires_at = time.time() + 60
             self.detected_vendors = []
@@ -292,7 +293,11 @@ class FaceClientApp:
             self.root.after(0, self._update_vendors_list)
             self._update_status(f"Session Active\nScan to Verify", "info")
         else:
-            self._update_status("Failed to Start Session", "warning")
+            error_msg = result.get("error", "Unknown error")
+            # Truncate error if too long (max 80 chars)
+            if len(error_msg) > 80:
+                error_msg = error_msg[:77] + "..."
+            self._update_status(f"Failed to create session:\n{error_msg}", "error")
             self.session_info_var.set("No active session")
 
     def _update_session_info(self):
