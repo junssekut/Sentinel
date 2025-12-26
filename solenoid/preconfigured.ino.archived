@@ -1,0 +1,94 @@
+#include <SPI.h>
+#include <MFRC522.h>
+
+#define SS_PIN   D2
+#define RST_PIN  D4
+
+#define RELAY_PIN D0
+#define LED_HIJAU D1
+#define LED_MERAH D3
+#define BUZZER    D8
+
+MFRC522 mfrc522(SS_PIN, RST_PIN);
+
+// ===== UID KARTU TERDAFTAR =====
+byte kartu1[4] = {9, 142, 177, 17};
+byte kartu2[4] = {108, 159, 37, 217};
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(LED_HIJAU, OUTPUT);
+  pinMode(LED_MERAH, OUTPUT);
+  pinMode(BUZZER, OUTPUT);
+
+  digitalWrite(RELAY_PIN, LOW);
+  digitalWrite(LED_HIJAU, LOW);
+  digitalWrite(LED_MERAH, LOW);
+  digitalWrite(BUZZER, LOW);
+
+  SPI.begin();
+  mfrc522.PCD_Init();
+
+  Serial.println("NodeMCU RFID siap...");
+}
+
+void loop() {
+
+  if (!mfrc522.PICC_IsNewCardPresent()) return;
+  if (!mfrc522.PICC_ReadCardSerial()) return;
+
+  Serial.print("UID:");
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
+    Serial.print(" ");
+    Serial.print(mfrc522.uid.uidByte[i]);
+  }
+  Serial.println();
+
+  if (cekUID(mfrc522.uid.uidByte, kartu1) || cekUID(mfrc522.uid.uidByte, kartu2)) {
+    aksesBenar();
+  } else {
+    aksesSalah();
+  }
+
+  mfrc522.PICC_HaltA();
+}
+
+// ================= FUNGSI =================
+
+bool cekUID(byte *uid, byte *data) {
+  for (byte i = 0; i < 4; i++) {
+    if (uid[i] != data[i]) return false;
+  }
+  return true;
+}
+
+void aksesBenar() {
+  Serial.println("AKSES DITERIMA");
+
+  digitalWrite(LED_HIJAU, HIGH);
+  digitalWrite(RELAY_PIN, HIGH);
+
+  for (int i = 0; i < 2; i++) {
+    digitalWrite(BUZZER, HIGH);
+    delay(100);
+    digitalWrite(BUZZER, LOW);
+    delay(100);
+  }
+
+  delay(5000);
+
+  digitalWrite(RELAY_PIN, LOW);
+  digitalWrite(LED_HIJAU, LOW);
+}
+
+void aksesSalah() {
+  Serial.println("AKSES DITOLAK");
+
+  digitalWrite(LED_MERAH, HIGH);
+  digitalWrite(BUZZER, HIGH);
+  delay(1500);
+  digitalWrite(BUZZER, LOW);
+  digitalWrite(LED_MERAH, LOW);
+}

@@ -1,18 +1,27 @@
 /*
- * Sentinel Door Lock IoT - Server-Driven Actuator
+ * Sentinel Door Lock IoT - Server-Driven Actuator with Feedback
  * 
- * Hardware: NodeMCU ESP8266 + Relay 1CH 5V + Solenoid Door Lock
+ * Hardware: NodeMCU ESP8266 + Relay 1CH 5V + Solenoid Door Lock + LEDs + Buzzer
  * 
  * This device is a pure actuator controlled by the server.
  * It does NOT make access decisions - only executes commands.
+ * 
+ * Pin Configuration:
+ *   D0 - Relay (Solenoid)
+ *   D1 - Green LED (Access Granted)
+ *   D3 - Red LED (Access Denied)
+ *   D8 - Buzzer
  */
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include "config.h"
 
-// Relay pin (D1 = GPIO5)
-#define RELAY_PIN D1
+// Pin definitions
+#define RELAY_PIN   D0
+#define LED_HIJAU   D1
+#define LED_MERAH   D3
+#define BUZZER      D8
 
 // Door states
 enum DoorState { LOCKED, UNLOCKED };
@@ -27,10 +36,10 @@ ESP8266WebServer server(80);
 void setDoorState(DoorState state) {
     currentState = state;
     if (state == UNLOCKED) {
-        digitalWrite(RELAY_PIN, HIGH);  // Energize relay
+        digitalWrite(RELAY_PIN, HIGH);
         Serial.println("[DOOR] UNLOCKED");
     } else {
-        digitalWrite(RELAY_PIN, LOW);   // De-energize relay
+        digitalWrite(RELAY_PIN, LOW);
         Serial.println("[DOOR] LOCKED");
     }
 }
@@ -48,24 +57,53 @@ void sendJsonResponse(int code, String message) {
     server.send(code, "application/json", json);
 }
 
+// Feedback functions with LED and buzzer
+void feedbackSuccess() {
+    digitalWrite(LED_HIJAU, HIGH);
+    
+    // Double beep for success
+    for (int i = 0; i < 2; i++) {
+        digitalWrite(BUZZER, HIGH);
+        delay(100);
+        digitalWrite(BUZZER, LOW);
+        delay(100);
+    }
+    
+    delay(500);
+    digitalWrite(LED_HIJAU, LOW);
+}
+
+void feedbackDenied() {
+    digitalWrite(LED_MERAH, HIGH);
+    digitalWrite(BUZZER, HIGH);
+    delay(1500);
+    digitalWrite(BUZZER, LOW);
+    digitalWrite(LED_MERAH, LOW);
+}
+
 // ============================================================
 // HTTP Handlers
 // ============================================================
 
 void handleUnlock() {
     if (!validateSecret()) {
+        feedbackDenied();
         sendJsonResponse(401, "unauthorized");
         return;
     }
+    
     setDoorState(UNLOCKED);
+    feedbackSuccess();
     sendJsonResponse(200, "unlocked");
 }
 
 void handleLock() {
     if (!validateSecret()) {
+        feedbackDenied();
         sendJsonResponse(401, "unauthorized");
         return;
     }
+    
     setDoorState(LOCKED);
     sendJsonResponse(200, "locked");
 }
@@ -89,9 +127,19 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\n[SENTINEL] Door Lock IoT Starting...");
 
-    // Initialize relay pin
+    // Initialize pins
     pinMode(RELAY_PIN, OUTPUT);
-    setDoorState(LOCKED);  // Default: locked
+    pinMode(LED_HIJAU, OUTPUT);
+    pinMode(LED_MERAH, OUTPUT);
+    pinMode(BUZZER, OUTPUT);
+
+    // Set default states
+    digitalWrite(RELAY_PIN, LOW);
+    digitalWrite(LED_HIJAU, LOW);
+    digitalWrite(LED_MERAH, LOW);
+    digitalWrite(BUZZER, LOW);
+    
+    setDoorState(LOCKED);
 
     // Connect to WiFi
     Serial.print("[WIFI] Connecting to ");
@@ -110,10 +158,17 @@ void setup() {
         Serial.println();
         Serial.print("[WIFI] Connected! IP: ");
         Serial.println(WiFi.localIP());
+        
+        // Success blink on WiFi connect
+        feedbackSuccess();
     } else {
         Serial.println("\n[WIFI] Failed to connect. Restarting...");
+        feedbackDenied();
         ESP.restart();
     }
+
+    // Collect headers for API secret validation
+    server.collectHeaders("X-API-Secret");
 
     // Setup HTTP routes
     server.on("/unlock", HTTP_POST, handleUnlock);
