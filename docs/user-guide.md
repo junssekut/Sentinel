@@ -10,9 +10,11 @@ Sentinel is a web-based access control system for managing vendor escorts in dat
 
 | Role | Description |
 |------|-------------|
-| **DCFM** | Data Center Facility Manager — Full administrative access |
-| **SOC** | Security Operation Center — Read-only monitoring access |
+| **DCFM** | Data Center Facility Manager — Full access to users and tasks, can be PIC |
+| **SOC** | Security Operation Center — Gate management and monitoring, can be PIC |
 | **Vendor** | External party — Can only view their own assigned tasks |
+
+> **Note:** PIC (Person in Charge) is not a separate role. A PIC is a DCFM or SOC user assigned to escort a vendor in a task.
 
 ---
 
@@ -104,14 +106,14 @@ The system automatically generates a unique **Face ID** for IoT integration.
 | Role | Access Level |
 |------|--------------|
 | Vendor | View own tasks only |
-| DCFM | Full access — manage everything |
-| SOC | View all tasks, read-only |
+| DCFM | Manage users and tasks, view gates |
+| SOC | Manage gates, view all tasks |
 
 ---
 
 ## Managing Gates
 
-### Adding a Gate (DCFM only)
+### Adding a Gate (SOC only)
 
 1. Click **Gates** in the navigation
 2. Click **New Gate** button
@@ -123,6 +125,15 @@ The system automatically generates a unique **Face ID** for IoT integration.
 4. Click **Add Gate**
 
 The system automatically generates a unique **Gate ID** for IoT devices.
+
+### Door Integration (SOC only)
+
+To link a gate to a physical door lock:
+
+1. Edit the gate
+2. Enter **Door ID** — Must match client DEVICE_ID
+3. Enter **Solenoid IP** — ESP8266 device address
+4. Save
 
 ### Gate Status
 

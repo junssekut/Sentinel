@@ -11,8 +11,8 @@ class UserPolicy
      */
     public function viewAny(User $user): bool
     {
-        // Only DCFM can view user list
-        return $user->isDcfm();
+        // DCFM and SOC can view user list
+        return $user->isDcfm() || $user->isSoc();
     }
 
     /**
@@ -20,8 +20,8 @@ class UserPolicy
      */
     public function view(User $user, User $model): bool
     {
-        // Users can view themselves, DCFM can view anyone
-        return $user->id === $model->id || $user->isDcfm();
+        // Users can view themselves, DCFM and SOC can view anyone
+        return $user->id === $model->id || $user->isDcfm() || $user->isSoc();
     }
 
     /**

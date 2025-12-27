@@ -107,14 +107,15 @@ def process_embedding_task(user_id: int, user_name: str, face_image: str):
 def enroll_from_image(
     user: schemas.UserCreate, 
     background_tasks: BackgroundTasks,
-    db: Session = Depends(database.get_db)
+    db: Session = Depends(database.get_db),
+    sync: bool = False  # If True, generate embedding synchronously
 ):
     """
     Enroll face data for an EXISTING user by generating embedding from face_image.
     This is called from the web dashboard when approving a user.
     
-    The embedding generation runs as a background task (non-blocking).
-    Returns immediately with 'processing' status.
+    If sync=True, embedding is generated immediately (blocking).
+    If sync=False (default), runs as background task (non-blocking).
     """
     # Find existing user by name
     existing_user = db.query(models.User).filter(models.User.name == user.name).first()
@@ -136,21 +137,47 @@ def enroll_from_image(
     existing_user.face_image = user.face_image
     db.commit()
     
-    # Add embedding generation to background tasks (non-blocking)
-    background_tasks.add_task(
-        process_embedding_task,
-        existing_user.id,
-        existing_user.name,
-        user.face_image
-    )
-    
-    return {
-        "status": "processing",
-        "message": f"Face image saved. Embedding generation started in background for user '{existing_user.name}'",
-        "user_id": existing_user.id,
-        "name": existing_user.name,
-        "role": existing_user.role
-    }
+    if sync:
+        # Synchronous mode: generate embedding immediately
+        logger.info(f"Generating embedding synchronously for user {existing_user.id} ({existing_user.name})")
+        embedding = crud.get_embedding_from_b64(user.face_image)
+        
+        if embedding is not None:
+            existing_user.face_embedding = embedding.tolist()
+            db.commit()
+            logger.info(f"Successfully saved embedding for user {existing_user.id}")
+            return {
+                "status": "success",
+                "message": f"Face enrolled and embedding generated for user '{existing_user.name}'",
+                "user_id": existing_user.id,
+                "name": existing_user.name,
+                "role": existing_user.role
+            }
+        else:
+            logger.error(f"Failed to generate embedding for user {existing_user.id}")
+            return {
+                "status": "failed",
+                "message": f"Failed to generate embedding for user '{existing_user.name}'",
+                "user_id": existing_user.id,
+                "name": existing_user.name,
+                "role": existing_user.role
+            }
+    else:
+        # Async mode: background task (non-blocking)
+        background_tasks.add_task(
+            process_embedding_task,
+            existing_user.id,
+            existing_user.name,
+            user.face_image
+        )
+        
+        return {
+            "status": "processing",
+            "message": f"Face image saved. Embedding generation started in background for user '{existing_user.name}'",
+            "user_id": existing_user.id,
+            "name": existing_user.name,
+            "role": existing_user.role
+        }
 
 
 @router.get("/status/{user_id}")

@@ -4,28 +4,33 @@ import tkinter.font as tkfont
 import threading
 import time
 import cv2
-import base64
 import numpy as np
 from PIL import Image, ImageTk
 
 from ..utils.helpers import (
     COLORS, ASSETS_DIR, CAMERA_INDEX, CAPTURE_INTERVAL, 
-    get_font, check_fonts, VIDEO_WIDTH, VIDEO_HEIGHT
+    get_font, check_fonts
 )
-from .widgets import RoundedButton, BentoCard
+from .widgets import BentoCard
 from ..core.api import SentinelAPI
 from ..core.detector import FaceDetector
 
+
 class FaceClientApp:
+    """
+    Clean verification-only client UI.
+    No enrollment - face enrollment happens on the website.
+    """
+    
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Sentinel Face Recognition")
+        self.root.title("Sentinel Access Control")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.configure(bg=COLORS["bg_window"])
         
-        # FIXED Window Size
-        window_width = 1100
-        window_height = 820
+        # Compact window size
+        window_width = 900
+        window_height = 700
         self.root.geometry(f"{window_width}x{window_height}")
         self.root.resizable(False, False)
         
@@ -45,7 +50,6 @@ class FaceClientApp:
         except Exception as e:
             print(f"Could not set window icon: {e}")
         
-        # Check fonts
         check_fonts()
         
         # Components
@@ -59,6 +63,9 @@ class FaceClientApp:
         self.session_id = None
         self.session_expires_at = None
         self.detected_vendors = []
+        self.current_step = 1  # 1 = waiting vendor, 2 = waiting PIC, 3 = completed
+        self.last_wrong_pic_time = 0  # Track when wrong PIC was shown
+        self.wrong_pic_cooldown = 3  # Seconds to suppress repeated wrong PIC errors
         
         # Build UI
         self._build_ui()
@@ -83,6 +90,167 @@ class FaceClientApp:
         # Bring window to front
         self.root.lift()
         self.root.focus_force()
+
+    def _build_ui(self):
+        main_pad = tk.Frame(self.root, bg=COLORS["bg_window"])
+        main_pad.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
+        
+        # Header
+        header_frame = tk.Frame(main_pad, bg=COLORS["bg_window"])
+        header_frame.pack(fill=tk.X, pady=(0, 20))
+        
+        try:
+            logo_path = ASSETS_DIR / "images" / "sentinel-logo.png"
+            pil_img = Image.open(logo_path)
+            pil_img.thumbnail((40, 40), Image.Resampling.LANCZOS)
+            self.logo_img = ImageTk.PhotoImage(pil_img)
+            tk.Label(header_frame, image=self.logo_img, bg=COLORS["bg_window"]).pack(side=tk.LEFT, padx=(0, 12))
+        except Exception:
+            pass
+            
+        tk.Label(header_frame, text="Sentinel Access", font=get_font(22, "bold"), 
+                 fg=COLORS["accent"], bg=COLORS["bg_window"]).pack(side=tk.LEFT)
+
+        # Main content - two columns
+        content_frame = tk.Frame(main_pad, bg=COLORS["bg_window"])
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        content_frame.columnconfigure(0, weight=3)
+        content_frame.columnconfigure(1, weight=2)
+        
+        # LEFT: Camera
+        left_col = tk.Frame(content_frame, bg=COLORS["bg_window"])
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
+        
+        self.video_card = BentoCard(left_col, width=500, height=500, 
+                                    bg_color=COLORS["bg_card"], radius=20)
+        self.video_card.pack(fill=tk.BOTH, expand=True)
+        
+        self.video_label = tk.Label(
+            self.video_card.container,
+            bg="#1a1a2e",
+            text="Initializing Camera...",
+            font=get_font(14),
+            fg=COLORS["text_secondary"]
+        )
+        self.video_label.pack(expand=True, fill=tk.BOTH, padx=8, pady=8)
+        
+        # Camera selector
+        camera_frame = tk.Frame(left_col, bg=COLORS["bg_window"])
+        camera_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        self.available_cameras = self._detect_cameras()
+        self.camera_var = tk.StringVar(value=self.available_cameras.get(CAMERA_INDEX, f"Camera {CAMERA_INDEX}"))
+        
+        camera_options = list(self.available_cameras.values()) if self.available_cameras else ["Camera 0"]
+        self.camera_dropdown = ttk.Combobox(
+            camera_frame, 
+            textvariable=self.camera_var,
+            values=camera_options,
+            state="readonly",
+            width=40
+        )
+        self.camera_dropdown.pack(fill=tk.X)
+        self.camera_dropdown.bind("<<ComboboxSelected>>", self._on_camera_change)
+
+        # RIGHT: Instructions and Status
+        right_col = tk.Frame(content_frame, bg=COLORS["bg_window"])
+        right_col.grid(row=0, column=1, sticky="nsew")
+        
+        # Status Card (prominent)
+        self.status_card = BentoCard(right_col, width=300, height=100, 
+                                     bg_color=COLORS["accent_light"], radius=16)
+        self.status_card.pack(fill=tk.X, pady=(0, 15))
+        
+        self.status_var = tk.StringVar(value="Initializing...")
+        self.status_label = tk.Label(
+            self.status_card.container,
+            textvariable=self.status_var,
+            font=get_font(16, "bold"),
+            fg=COLORS["accent"],
+            bg=COLORS["accent_light"],
+            wraplength=260,
+            justify="center"
+        )
+        self.status_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+
+        # Instructions Card
+        self.instructions_card = BentoCard(right_col, width=300, height=200, radius=16)
+        self.instructions_card.pack(fill=tk.X, pady=(0, 15))
+        
+        instr_inner = tk.Frame(self.instructions_card.container, bg=COLORS["bg_card"])
+        instr_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=12)
+        
+        tk.Label(instr_inner, text="📋 Instructions", font=get_font(13, "bold"),
+                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w", pady=(0, 10))
+        
+        # Step indicators
+        self.step_frames = []
+        for i, step_text in enumerate([
+            "Scan Vendor Face(s)",
+            "Scan PIC to Approve",
+            "Access Result"
+        ], 1):
+            step_frame = tk.Frame(instr_inner, bg=COLORS["bg_card"])
+            step_frame.pack(fill=tk.X, pady=3)
+            
+            self.step_indicator = tk.Label(
+                step_frame, 
+                text=f"{i}.", 
+                font=get_font(12, "bold"),
+                fg=COLORS["text_secondary"], 
+                bg=COLORS["bg_card"],
+                width=3
+            )
+            self.step_indicator.pack(side=tk.LEFT)
+            
+            step_label = tk.Label(
+                step_frame,
+                text=step_text,
+                font=get_font(12),
+                fg=COLORS["text_secondary"],
+                bg=COLORS["bg_card"]
+            )
+            step_label.pack(side=tk.LEFT)
+            
+            self.step_frames.append((step_frame, self.step_indicator, step_label))
+        
+        # Hint label
+        self.hint_var = tk.StringVar(value="Look at the camera to start")
+        self.hint_label = tk.Label(
+            instr_inner,
+            textvariable=self.hint_var,
+            font=get_font(10),
+            fg=COLORS["accent"],
+            bg=COLORS["bg_card"],
+            wraplength=250
+        )
+        self.hint_label.pack(anchor="w", pady=(10, 0))
+
+        # Session Info Card
+        self.session_card = BentoCard(right_col, width=300, height=70, radius=16)
+        self.session_card.pack(fill=tk.X, pady=(0, 15))
+        
+        session_inner = tk.Frame(self.session_card.container, bg=COLORS["bg_card"])
+        session_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        
+        self.session_info_var = tk.StringVar(value="No active session")
+        tk.Label(session_inner, textvariable=self.session_info_var, font=get_font(11),
+                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w")
+
+        # Vendors Card
+        self.vendors_card = BentoCard(right_col, width=300, height=90, radius=16)
+        self.vendors_card.pack(fill=tk.X)
+        
+        vendors_inner = tk.Frame(self.vendors_card.container, bg=COLORS["bg_card"])
+        vendors_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        
+        tk.Label(vendors_inner, text="👥 Vendors Detected", font=get_font(11, "bold"),
+                 fg=COLORS["text_secondary"], bg=COLORS["bg_card"]).pack(anchor="w")
+        
+        self.vendors_list_var = tk.StringVar(value="None yet")
+        tk.Label(vendors_inner, textvariable=self.vendors_list_var, font=get_font(12),
+                 fg=COLORS["text_primary"], bg=COLORS["bg_card"], wraplength=250,
+                 justify="left").pack(anchor="w")
 
     def _detect_cameras(self) -> dict:
         cameras = {}
@@ -109,167 +277,6 @@ class FaceClientApp:
             else:
                 self._update_status(f"Failed to open Camera {new_index}", "error")
 
-    def _build_ui(self):
-        main_pad = tk.Frame(self.root, bg=COLORS["bg_window"])
-        main_pad.pack(fill=tk.BOTH, expand=True, padx=40, pady=40)
-        
-        main_pad.columnconfigure(0, weight=1)
-        main_pad.columnconfigure(1, weight=1)
-        main_pad.rowconfigure(0, weight=1)
-
-        # LEFT COLUMN
-        left_col = tk.Frame(main_pad, bg=COLORS["bg_window"])
-        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
-        
-        video_card_h = 680
-        video_card_w = 580
-        
-        self.video_card = BentoCard(left_col, width=video_card_w, height=video_card_h, 
-                                    bg_color=COLORS["bg_card"], radius=24)
-        self.video_card.pack(fill=tk.BOTH, expand=True)
-        
-        self.video_label = tk.Label(
-            self.video_card.container,
-            bg=COLORS["bg_window"],
-            text="Initializing Camera...",
-            font=get_font(14),
-            fg=COLORS["text_secondary"]
-        )
-        self.video_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
-        
-        camera_frame = tk.Frame(left_col, bg=COLORS["bg_window"])
-        camera_frame.pack(fill=tk.X, pady=(15, 0))
-        
-        tk.Label(camera_frame, text="Camera:", font=get_font(11), 
-                 fg=COLORS["text_secondary"], bg=COLORS["bg_window"]).pack(side=tk.LEFT)
-        
-        self.available_cameras = self._detect_cameras()
-        self.camera_var = tk.StringVar(value=self.available_cameras.get(CAMERA_INDEX, f"Camera {CAMERA_INDEX}"))
-        
-        camera_options = list(self.available_cameras.values()) if self.available_cameras else ["Camera 0"]
-        self.camera_dropdown = ttk.Combobox(
-            camera_frame, 
-            textvariable=self.camera_var,
-            values=camera_options,
-            state="readonly",
-            width=30
-        )
-        self.camera_dropdown.pack(side=tk.LEFT, padx=(10, 0))
-        self.camera_dropdown.bind("<<ComboboxSelected>>", self._on_camera_change)
-
-        # RIGHT COLUMN
-        right_col = tk.Frame(main_pad, bg=COLORS["bg_window"])
-        right_col.grid(row=0, column=1, sticky="nsew")
-        
-        # 1. Header
-        self.header_card = BentoCard(right_col, width=400, height=100, radius=20)
-        self.header_card.pack(fill=tk.X, pady=(0, 20))
-        
-        header_inner = tk.Frame(self.header_card.container, bg=COLORS["bg_card"])
-        header_inner.pack(fill=tk.BOTH, expand=True, padx=15)
-        
-        logo_title_frame = tk.Frame(header_inner, bg=COLORS["bg_card"])
-        logo_title_frame.pack(expand=True)
-        
-        try:
-            logo_path = ASSETS_DIR / "images" / "sentinel-logo.png"
-            pil_img = Image.open(logo_path)
-            pil_img.thumbnail((50, 50), Image.Resampling.LANCZOS)
-            self.logo_img = ImageTk.PhotoImage(pil_img)
-            tk.Label(logo_title_frame, image=self.logo_img, bg=COLORS["bg_card"]).pack(side=tk.LEFT, padx=(0, 15))
-        except Exception as e:
-            print(f"Could not load logo: {e}")
-            
-        tk.Label(logo_title_frame, text="Sentinel Access", font=get_font(24, "bold"), 
-                 fg=COLORS["accent"], bg=COLORS["bg_card"]).pack(side=tk.LEFT)
-
-        # 2. Status
-        self.status_card = BentoCard(right_col, width=400, height=100, 
-                                     bg_color=COLORS["accent_light"], radius=20)
-        self.status_card.pack(fill=tk.X, pady=(0, 15))
-        
-        self.status_var = tk.StringVar(value="Initializing...")
-        self.status_label = tk.Label(
-            self.status_card.container,
-            textvariable=self.status_var,
-            font=get_font(18, "bold"),
-            fg=COLORS["accent"],
-            bg=COLORS["accent_light"],
-            wraplength=300,
-            justify="center"
-        )
-        self.status_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=5)
-
-        # 3. Session Info
-        self.session_card = BentoCard(right_col, width=400, height=80, radius=20)
-        self.session_card.pack(fill=tk.X, pady=(0, 15))
-        
-        session_inner = tk.Frame(self.session_card.container, bg=COLORS["bg_card"])
-        session_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        
-        tk.Label(session_inner, text="Session", font=get_font(11, "bold"),
-                 fg=COLORS["text_secondary"], bg=COLORS["bg_card"]).pack(anchor="w")
-        
-        self.session_info_var = tk.StringVar(value="No active session")
-        tk.Label(session_inner, textvariable=self.session_info_var, font=get_font(12),
-                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w")
-
-        # 4. Vendors
-        self.vendors_card = BentoCard(right_col, width=400, height=100, radius=20)
-        self.vendors_card.pack(fill=tk.X, pady=(0, 15))
-        
-        vendors_inner = tk.Frame(self.vendors_card.container, bg=COLORS["bg_card"])
-        vendors_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        
-        tk.Label(vendors_inner, text="Vendors Detected", font=get_font(11, "bold"),
-                 fg=COLORS["text_secondary"], bg=COLORS["bg_card"]).pack(anchor="w")
-        
-        self.vendors_list_var = tk.StringVar(value="None yet")
-        tk.Label(vendors_inner, textvariable=self.vendors_list_var, font=get_font(12),
-                 fg=COLORS["text_primary"], bg=COLORS["bg_card"], wraplength=280,
-                 justify="left").pack(anchor="w")
-
-        # 5. Controls
-        self.controls_card = BentoCard(right_col, width=400, height=260, radius=20)
-        self.controls_card.pack(fill=tk.BOTH, expand=True)
-        
-        controls_inner = tk.Frame(self.controls_card.container, bg=COLORS["bg_card"])
-        controls_inner.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        tk.Label(controls_inner, text="Name", font=get_font(12, "bold"), 
-                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w")
-        
-        entry_frame = tk.Frame(controls_inner, bg=COLORS["border"], padx=1, pady=1)
-        entry_frame.pack(fill=tk.X, pady=(5, 15))
-        
-        self.name_entry = tk.Entry(entry_frame, font=get_font(12), bg="#FFFFFF", relief=tk.FLAT)
-        self.name_entry.pack(fill=tk.X, ipadx=5, ipady=8)
-
-        tk.Label(controls_inner, text="Role", font=get_font(12, "bold"), 
-                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w")
-        
-        role_frame = tk.Frame(controls_inner, bg=COLORS["bg_card"])
-        role_frame.pack(fill=tk.X, pady=(5, 20))
-        
-        self.role_var = tk.StringVar(value="vendor")
-        for role, val in [("Vendor", "vendor"), ("PIC", "pic")]:
-            tk.Radiobutton(role_frame, text=role, variable=self.role_var, value=val,
-                          font=get_font(11), bg=COLORS["bg_card"],
-                          activebackground=COLORS["bg_card"]).pack(side=tk.LEFT, padx=(0, 15))
-
-        btn_container = tk.Frame(controls_inner, bg=COLORS["bg_card"])
-        btn_container.pack(fill=tk.X, pady=(10, 0))
-        
-        self.enroll_btn = RoundedButton(btn_container, text="Enroll Face", command=self.enroll_face,
-                                       bg_color=COLORS["accent"], fg_color="#FFFFFF",
-                                       hover_color=COLORS["accent_hover"], width=140, height=44)
-        self.enroll_btn.pack(side=tk.LEFT, padx=(0, 10))
-        
-        self.verify_btn = RoundedButton(btn_container, text="Stop Verify", command=self.toggle_verify,
-                                       bg_color=COLORS["bg_window"], fg_color=COLORS["text_primary"],
-                                       hover_color=COLORS["border"], width=140, height=44)
-        self.verify_btn.pack(side=tk.LEFT)
-
     def _update_status(self, message: str, status_type: str = "info"):
         bg_map = {"info": COLORS["accent_light"], "success": COLORS["success_bg"],
                   "warning": COLORS["warning_bg"], "error": COLORS["danger_bg"]}
@@ -282,6 +289,23 @@ class FaceClientApp:
         self.status_label.configure(fg=fg, bg=bg)
         self.status_card.set_background_color(bg)
 
+    def _update_step(self, step: int):
+        """Update step indicators to show current progress."""
+        self.current_step = step
+        for i, (frame, indicator, label) in enumerate(self.step_frames, 1):
+            if i < step:
+                # Completed
+                indicator.configure(text="✓", fg=COLORS["success"])
+                label.configure(fg=COLORS["success"])
+            elif i == step:
+                # Current
+                indicator.configure(text=f"{i}.", fg=COLORS["accent"])
+                label.configure(fg=COLORS["text_primary"], font=get_font(12, "bold"))
+            else:
+                # Future
+                indicator.configure(text=f"{i}.", fg=COLORS["text_secondary"])
+                label.configure(fg=COLORS["text_secondary"], font=get_font(12))
+
     def _start_session(self):
         result = self.api.start_session()
         if result.get("success"):
@@ -289,28 +313,30 @@ class FaceClientApp:
             self.session_id = data.get("session_id")
             self.session_expires_at = time.time() + 60
             self.detected_vendors = []
+            self.root.after(0, lambda: self._update_step(1))
             self.root.after(0, self._update_session_info)
             self.root.after(0, self._update_vendors_list)
-            self._update_status(f"Session Active\nScan to Verify", "info")
+            self._update_status("Ready\nScan Vendor Face", "info")
+            self.hint_var.set("💡 Look at the camera to scan your face")
         else:
             error_msg = result.get("error", "Unknown error")
-            # Truncate error if too long (max 80 chars)
-            if len(error_msg) > 80:
-                error_msg = error_msg[:77] + "..."
-            self._update_status(f"Failed to create session:\n{error_msg}", "error")
+            if len(error_msg) > 60:
+                error_msg = error_msg[:57] + "..."
+            self._update_status(f"Connection Error\n{error_msg}", "error")
             self.session_info_var.set("No active session")
 
     def _update_session_info(self):
         if self.session_id and self.session_expires_at:
             remaining = int(self.session_expires_at - time.time())
             if remaining > 0:
-                self.session_info_var.set(f"ID: {self.session_id[:8]}... • Expires in {remaining}s")
+                self.session_info_var.set(f"⏱ Session: {self.session_id[:8]}... • {remaining}s")
             else:
                 self.session_info_var.set("Session expired • Restarting...")
                 self.session_id = None
                 self.session_expires_at = None
                 self.detected_vendors = []
                 self._update_vendors_list()
+                self._update_step(1)
                 self.root.after(1000, lambda: threading.Thread(target=self._start_session, daemon=True).start())
         else:
             self.session_info_var.set("No active session")
@@ -324,7 +350,7 @@ class FaceClientApp:
     def _load_model(self):
         self._update_status("Loading Model...", "info")
         if self.detector.load():
-            self._update_status("System Ready\nWaiting for Face", "success")
+            self._update_status("Ready\nScan Vendor Face", "success")
         else:
             self._update_status("Model Load Failed", "error")
 
@@ -347,7 +373,7 @@ class FaceClientApp:
             rgb = cv2.cvtColor(mirrored, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(rgb)
             
-            target_w = self.video_label.winfo_width() if self.video_label.winfo_width() > 10 else 640
+            target_w = self.video_label.winfo_width() if self.video_label.winfo_width() > 10 else 480
             target_h = self.video_label.winfo_height() if self.video_label.winfo_height() > 10 else 480
             
             img_ratio = img.width / img.height
@@ -359,7 +385,7 @@ class FaceClientApp:
                 new_h, new_w = target_h, int(target_h * img_ratio)
                 
             img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-            canvas = Image.new("RGB", (target_w, target_h), "#000000")
+            canvas = Image.new("RGB", (target_w, target_h), "#1a1a2e")
             canvas.paste(img, ((target_w - new_w) // 2, (target_h - new_h) // 2))
             
             imgtk = ImageTk.PhotoImage(image=canvas)
@@ -373,35 +399,6 @@ class FaceClientApp:
         if self.verify_running:
             threading.Thread(target=self.verify_once, daemon=True).start()
         self.root.after(CAPTURE_INTERVAL * 1000, self._schedule_verify)
-
-    def toggle_verify(self):
-        self.verify_running = not self.verify_running
-        self.verify_btn.set_text("Stop Verify" if self.verify_running else "Start Verify")
-        self._update_status("Verification " + ("Resumed" if self.verify_running else "Paused"), 
-                            "info" if self.verify_running else "warning")
-
-    def enroll_face(self):
-        frame = self.last_frame
-        if frame is None: return messagebox.showwarning("Frame", "No frame available")
-        name = self.name_entry.get().strip()
-        if not name: return messagebox.showwarning("Input", "Name is required")
-        
-        _, buffer = cv2.imencode('.jpg', frame)
-        face_image_b64 = base64.b64encode(buffer).decode('utf-8')
-        payload = {
-            "name": name,
-            "role": self.role_var.get(),
-            "face_image": f"data:image/jpeg;base64,{face_image_b64}",
-        }
-        
-        self._update_status("Sending to Server...", "info")
-        def do_enroll():
-            try:
-                res = self.api.enroll_face(payload)
-                self._update_status(f"Enrolled:\n{name}", "success")
-            except Exception as e:
-                self._update_status(f"Enroll Failed:\n{e}", "error")
-        threading.Thread(target=do_enroll, daemon=True).start()
 
     def verify_once(self):
         frame = self.last_frame
@@ -420,6 +417,7 @@ class FaceClientApp:
             self.detected_vendors = []
             self.root.after(0, self._update_session_info)
             self.root.after(0, self._update_vendors_list)
+            self.root.after(0, lambda: self._update_step(1))
             self._update_status("Session Expired\nRestarting...", "warning")
             return
         
@@ -434,18 +432,72 @@ class FaceClientApp:
         self.root.after(0, self._update_session_info)
         
         if state == "approved":
-            self._update_status(f"ACCESS GRANTED\n{message}", "success")
-            self.detected_vendors = []
-            self.root.after(0, self._update_vendors_list)
-            self.session_info_var.set("Session approved!")
-            self.root.after(12000, self._start_session)
-            self.session_id = self.session_expires_at = None
+            # Stop verification to show result
+            self.verify_running = False
+            
+            self._update_status("✅ ACCESS GRANTED", "success")
+            self.root.after(0, lambda: self._update_step(3))
+            self.hint_var.set("🚪 Door unlocking... Please enter")
+            self.session_info_var.set("✓ Session approved!")
+            
+            # Clear session after a delay to show the result
+            def _clear_and_restart():
+                self.detected_vendors = []
+                self.session_id = None
+                self.session_expires_at = None
+                self.root.after(0, self._update_vendors_list)
+                self.verify_running = True
+                self._start_session()
+            
+            # Wait 8 seconds before starting new session
+            self.root.after(8000, _clear_and_restart)
+            
         elif state == "waiting_pic":
-            self._update_status(f"Vendors Scanned\nWaiting for PIC...", "warning")
+            # Check if this is an error (wrong PIC scanned)
+            if "No task" in message or "not assigned" in message:
+                # Wrong PIC detected - show error but KEEP scanning for correct PIC
+                # Use cooldown to prevent spamming same error
+                current_time = time.time()
+                if current_time - self.last_wrong_pic_time > self.wrong_pic_cooldown:
+                    # Show error with cooldown
+                    self.last_wrong_pic_time = current_time
+                    self._update_status("❌ Wrong PIC", "error")
+                    self.hint_var.set(f"⚠️ {message}")
+                # Don't stop verification - keep scanning for correct PIC!
+                # Just update step indicator
+                self.root.after(0, lambda: self._update_step(2))
+            else:
+                # Normal waiting for PIC - first time or vendor just scanned
+                self.last_wrong_pic_time = 0  # Reset cooldown
+                self._update_status("Vendors OK\nNow Scan PIC", "warning")
+                self.root.after(0, lambda: self._update_step(2))
+                self.hint_var.set("💡 PIC: Please scan your face to approve")
         elif state == "waiting_vendors":
-            self._update_status(f"Scan Vendors\n{message}", "info")
+            self.last_wrong_pic_time = 0  # Reset cooldown
+            vendor_count = len(vendors)
+            if vendor_count > 0:
+                self._update_status(f"{vendor_count} Vendor(s) Scanned\nAdd more or scan PIC", "info")
+                self.hint_var.set("💡 Scan another vendor or scan PIC to proceed")
+            else:
+                self._update_status("Ready\nScan Vendor Face", "info")
+                self.hint_var.set("💡 Look at the camera to scan your face")
         else:
-            self._update_status(message, "info")
+            # Handle denied or other messages
+            if "DENIED" in message.upper():
+                # Stop verification briefly to show denied message
+                self.verify_running = False
+                self._update_status("❌ ACCESS DENIED", "error")
+                self.hint_var.set(f"⚠️ {message}")
+                
+                # Resume after 5 seconds with new session
+                def _resume_verify():
+                    self.verify_running = True
+                    self.last_wrong_pic_time = 0
+                    self._start_session()
+                
+                self.root.after(5000, _resume_verify)
+            else:
+                self._update_status(message, "info")
 
     def on_close(self):
         self.running = False

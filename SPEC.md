@@ -67,21 +67,31 @@ If a feature feels complex:
 - External party accessing the data center
 - Must be accompanied by an assigned PIC
 - Can only access gates defined by their active task
+- Registers via web form with face capture
 
 ### 3.2 DCFM (Data Center Facility Manager)
 - Internal operator
 - Responsibilities:
-  - Register users
-  - Assign tasks
-  - Assign Vendor ↔ PIC relationships
+  - Register users (vendors, other DCFM, SOC)
+  - Assign tasks (vendor ↔ PIC assignments)
+  - Approve vendor face enrollments
 - Full visibility and control over all tasks
+- Can act as PIC when assigned to a task
 
 ### 3.3 SOC (Security Operation Center)
-- Internal monitoring role
-- Read-only access to:
-  - All tasks
-  - All vendor assignments
-- No task modification permissions
+- Internal security operations role
+- Responsibilities:
+  - Manage gates (create, edit, delete)
+  - Configure door integration (door_id, IP address)
+  - Monitor all tasks and vendor assignments
+- View access to users (read-only)
+- Full control over gate management
+- Can act as PIC when assigned to a task
+
+### 3.4 PIC (Person in Charge)
+- **Not a separate role** — PIC is a DCFM or SOC user assigned to a task
+- The PIC must physically scan their face to approve vendor access
+- One task = one vendor + one PIC + allowed gates + time window
 
 ---
 
@@ -268,6 +278,90 @@ Response (denied):
       "approved": false,
       "reason": "Policy violation"
     }
+
+---
+
+### 10.2 Gate-Solenoid Integration
+
+Gates can be linked to physical solenoid door locks through the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `door_id` | string | Device identifier matching client DEVICE_ID |
+| `door_ip_address` | IP | Network address of solenoid IoT device |
+| `integration_status` | enum | not_integrated, integrated, offline |
+| `last_heartbeat_at` | timestamp | Last device status report |
+
+**Role Permissions:**
+- SOC can assign/modify door_id and door_ip_address
+- DCFM can view but not modify door integration settings
+
+---
+
+### 10.3 Door Access Logging API
+
+Endpoint:
+POST /api/doors/log-access
+
+Request payload:
+    {
+      "door_id": "string",
+      "event_type": "entry|exit|denied",
+      "vendor_id": int (optional),
+      "pic_id": int (optional),
+      "task_id": int (optional),
+      "session_id": "string" (optional),
+      "reason": "string" (optional)
+    }
+
+This endpoint is called by the Python server after access validation.
+
+---
+
+### 10.4 Live Access Logs (Polling)
+
+Endpoint:
+GET /api/gates/{gate}/access-logs
+
+Query parameters:
+- `limit`: Number of logs to return (default: 20)
+- `since`: ISO-8601 timestamp for incremental updates
+
+Response:
+    {
+      "gate_id": int,
+      "door_id": "string",
+      "integration_status": "string",
+      "is_online": boolean,
+      "logs": [
+        {
+          "id": int,
+          "event_type": "entry|exit|denied",
+          "vendor": "string",
+          "pic": "string",
+          "reason": "string or null",
+          "created_at": "ISO-8601",
+          "created_at_human": "string"
+        }
+      ],
+      "timestamp": "ISO-8601"
+    }
+
+The website polls this endpoint every 5 seconds for live updates.
+
+---
+
+### 10.5 Device Heartbeat API
+
+Endpoint:
+POST /api/doors/heartbeat
+
+Request payload:
+    {
+      "door_id": "string"
+    }
+
+Updates the gate's `last_heartbeat_at` and sets `integration_status` to "integrated".
 
 ---
 

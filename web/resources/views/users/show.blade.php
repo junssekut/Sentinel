@@ -101,7 +101,6 @@
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mt-3
                         @if($user->role === 'dcfm') bg-sentinel-blue/10 text-sentinel-blue
                         @elseif($user->role === 'soc') bg-navy/10 text-navy
-                        @elseif($user->role === 'pic') bg-success/10 text-success
                         @else bg-slate/10 text-slate @endif">
                         {{ strtoupper($user->role) }}
                     </span>
@@ -130,6 +129,17 @@
                         <a href="{{ route('users.edit', $user) }}" class="inline-flex items-center justify-center w-full px-4 py-2 border border-light-200 text-navy text-sm font-medium rounded-lg hover:bg-light-100 transition-colors">
                             Edit Profile
                         </a>
+                        
+                        @can('delete', $user)
+                        <form action="{{ route('users.destroy', $user) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this user? This action cannot be undone.');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="inline-flex items-center justify-center w-full px-4 py-2 bg-error text-white text-sm font-medium rounded-lg hover:bg-error/90 transition-colors gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                Delete User
+                            </button>
+                        </form>
+                        @endcan
                     </div>
                     @endcan
                 </div>

@@ -13,7 +13,7 @@ class AccessValidateRequest(BaseModel):
 
 class UserCreate(BaseModel):
     name: str
-    role: str # vendor, pic
+    role: str # vendor, dcfm, soc
     face_image: Optional[str] = None # Base64 of the face (optional now)
     embedding: Optional[List[float]] = None # Pre-computed embedding from client
 

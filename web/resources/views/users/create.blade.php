@@ -45,7 +45,6 @@
                             <select id="role" name="role" required
                                 class="w-full rounded-xl border-gray-200 focus:ring-sentinel-blue focus:border-sentinel-blue bg-slate-50 hover:bg-white transition-all duration-200 py-3 px-4 font-medium">
                                 <option value="vendor" {{ old('role') === 'vendor' ? 'selected' : '' }}>Vendor</option>
-                                <option value="pic" {{ old('role') === 'pic' ? 'selected' : '' }}>PIC (Person in Charge)</option>
                                 <option value="dcfm" {{ old('role') === 'dcfm' ? 'selected' : '' }}>DCFM (Facility Manager)</option>
                                 <option value="soc" {{ old('role') === 'soc' ? 'selected' : '' }}>SOC (Security Center)</option>
                             </select>
