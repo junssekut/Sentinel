@@ -61,6 +61,42 @@ Once configured, the gate will show integration status:
 - 🟡 **Offline**: Integrated but no recent heartbeat (>5 min)
 - ⚪ **Not Integrated**: No door_id assigned
 
+## Face Enrollment Flow
+
+Face enrollment requires the **Python FastAPI server to be running**.
+
+### Prerequisites
+```bash
+# Start Python server first
+cd server
+python main.py
+```
+
+### Enrollment Methods
+
+1. **Admin Creates User** (`/users/create`):
+   - DCFM captures face photo via webcam
+   - Laravel sends to FastAPI with `sync=true`
+   - Embedding generated immediately → User ready to scan
+
+2. **Vendor Self-Registration** (`/register`):
+   - Vendor captures own face
+   - Embedding generated via FastAPI
+   - Appears at `/vendors/pending` for DCFM approval
+
+3. **Manual Approval** (`/vendors/pending` or `/users/{id}`):
+   - Click "Approve Face" button
+   - FastAPI generates embedding synchronously
+   - Face status changes to "Enrolled"
+
+### Environment Variables
+
+In `/web/.env`:
+```env
+FASTAPI_SERVER_URL=http://127.0.0.1:8001
+API_SECRET=dev-secret
+```
+
 ### Live Access Logs
 
 The gate detail page shows real-time access events:

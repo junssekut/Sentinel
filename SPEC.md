@@ -67,14 +67,16 @@ If a feature feels complex:
 - External party accessing the data center
 - Must be accompanied by an assigned PIC
 - Can only access gates defined by their active task
+- Registers via web form with face capture
 
 ### 3.2 DCFM (Data Center Facility Manager)
 - Internal operator
 - Responsibilities:
-  - Register users
-  - Assign tasks
-  - Assign Vendor ↔ PIC relationships
+  - Register users (vendors, other DCFM, SOC)
+  - Assign tasks (vendor ↔ PIC assignments)
+  - Approve vendor face enrollments
 - Full visibility and control over all tasks
+- Can act as PIC when assigned to a task
 
 ### 3.3 SOC (Security Operation Center)
 - Internal security operations role
@@ -82,8 +84,14 @@ If a feature feels complex:
   - Manage gates (create, edit, delete)
   - Configure door integration (door_id, IP address)
   - Monitor all tasks and vendor assignments
-- View access to all tasks (read-only)
+- View access to users (read-only)
 - Full control over gate management
+- Can act as PIC when assigned to a task
+
+### 3.4 PIC (Person in Charge)
+- **Not a separate role** — PIC is a DCFM or SOC user assigned to a task
+- The PIC must physically scan their face to approve vendor access
+- One task = one vendor + one PIC + allowed gates + time window
 
 ---
 

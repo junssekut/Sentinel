@@ -123,6 +123,47 @@ def validate_task_for_access(
     return True, task, "OK"
 
 
+def validate_task_for_access_by_pair(
+    db: Session,
+    vendor_id: int,
+    pic_id: int,
+    door_id: Optional[str] = None
+) -> tuple[bool, Optional[models.Task], str]:
+    """
+    Validate if there's an active task that allows the vendor-PIC pair
+    at the current time. Gate validation is optional (if door_id provided).
+    
+    This ensures that a valid task MUST exist for access to be granted.
+    
+    Returns: (is_valid, task, reason)
+    """
+    now = datetime.now()
+    
+    # Find active task for this vendor-PIC pair within time window
+    task = db.query(models.Task).filter(
+        and_(
+            models.Task.vendor_id == vendor_id,
+            models.Task.pic_id == pic_id,
+            models.Task.status == 'active',
+            models.Task.start_time <= now,
+            models.Task.end_time >= now
+        )
+    ).first()
+    
+    if not task:
+        return False, None, "No active task found for this vendor-PIC pair at current time"
+    
+    # If door_id provided, also validate gate authorization
+    if door_id:
+        gate = db.query(models.Gate).filter(models.Gate.gate_id == door_id).first()
+        if gate:
+            task_gate_ids = [g.gate_id for g in task.gates]
+            if gate.gate_id not in task_gate_ids:
+                return False, task, f"Gate '{gate.name}' is not authorized for this task"
+    
+    return True, task, "OK"
+
+
 @router.post("/start", response_model=SessionResponse)
 def start_session(request: StartSessionRequest = None):
     """Start a new access session"""
@@ -179,16 +220,29 @@ async def scan_face(
 
     # Handle based on role
     if user.role == "vendor":
+        # Check if this vendor is already in the session
+        already_scanned = any(v.user_id == user.id for v in session.vendors)
+        
+        if already_scanned:
+            # Vendor already scanned - remind to scan PIC
+            return SessionResponse(
+                session_id=session.id,
+                state=SessionState.WAITING_PIC,
+                message=f"Vendor '{user.name}' already scanned. Now scan PIC to approve.",
+                vendors=[v.name for v in session.vendors],
+                pic=None,
+            )
+        
         session_manager.add_vendor(request.session_id, person)
         return SessionResponse(
             session_id=session.id,
-            state=session.state,
-            message=f"Vendor '{user.name}' registered. Waiting for more vendors or PIC.",
+            state=SessionState.WAITING_PIC,  # After vendor, we're waiting for PIC
+            message=f"Vendor '{user.name}' registered. Now scan PIC to approve (or add more vendors).",
             vendors=[v.name for v in session.vendors],
             pic=None,
         )
 
-    elif user.role in ["pic", "dcfm", "soc"]:
+    elif user.role in ["dcfm", "soc"]:
         # PIC/Admin detected - validate task before unlock
         if len(session.vendors) == 0:
             return SessionResponse(
@@ -199,23 +253,31 @@ async def scan_face(
                 pic=None,
             )
 
-        # Validate task for each vendor
+        # ALWAYS validate task for vendor-PIC pair
+        # Task validation is MANDATORY - access should be denied if no valid task exists
         door_id = session.gate_id
         validated_task = None
+        deny_reason = None
         
-        if door_id:
-            # Check if there's a valid task for any vendor
-            for vendor in session.vendors:
-                is_valid, task, reason = validate_task_for_access(
-                    db, vendor.user_id, user.id, door_id
-                )
-                if is_valid:
-                    validated_task = task
-                    break
+        # Check if there's a valid task for any vendor with this PIC
+        for vendor in session.vendors:
+            is_valid, task, reason = validate_task_for_access_by_pair(
+                db, vendor.user_id, user.id, door_id
+            )
+            if is_valid:
+                validated_task = task
+                break
+            else:
+                deny_reason = reason  # Keep the last reason for error message
+        
+        # If no valid task found, DENY access
+        if not validated_task:
+            # Build a clearer error message
+            vendor_names = ", ".join([v.name for v in session.vendors])
+            error_msg = f"'{user.name}' is not assigned as PIC for vendor(s): {vendor_names}"
             
-            # If no valid task found, deny access
-            if not validated_task:
-                # Log denied access
+            # Log denied access
+            if door_id:
                 background_tasks.add_task(
                     log_access_to_laravel,
                     door_id=door_id,
@@ -223,17 +285,17 @@ async def scan_face(
                     vendor_id=session.vendors[0].user_id if session.vendors else None,
                     pic_id=user.id,
                     session_id=session.id,
-                    reason=reason,
-                    details={"vendors": [v.name for v in session.vendors]}
+                    reason=error_msg,
+                    details={"vendors": [v.name for v in session.vendors], "pic_attempted": user.name}
                 )
-                
-                return SessionResponse(
-                    session_id=session.id,
-                    state=session.state,
-                    message=f"Access DENIED: {reason}",
-                    vendors=[v.name for v in session.vendors],
-                    pic=None,
-                )
+            
+            return SessionResponse(
+                session_id=session.id,
+                state=SessionState.WAITING_PIC,  # Stay in waiting_pic state so correct PIC can scan
+                message=f"No task found. {error_msg}",
+                vendors=[v.name for v in session.vendors],
+                pic=None,
+            )
 
         session_manager.set_pic(request.session_id, person)
         

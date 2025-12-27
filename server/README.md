@@ -62,15 +62,32 @@ GET /api/session/{session_id}
 ```
 
 ### Face Enrollment
+
+Enrollment is called from the Laravel web dashboard when creating users or approving faces.
+
 ```http
-POST /api/faces/enroll
+POST /api/faces/enroll-from-image?sync=true
 Content-Type: application/json
 
 {
   "name": "John Doe",
   "role": "vendor",
-  "face_image": "<base64>",
-  "embedding": [0.1, 0.2, ...]
+  "face_image": "<base64>"
+}
+```
+
+Query parameters:
+- `sync=true` — Generate embedding immediately (blocking, recommended for web dashboard)
+- `sync=false` — Generate embedding in background (non-blocking)
+
+Response:
+```json
+{
+  "status": "success",
+  "message": "Face enrolled and embedding generated for user 'John Doe'",
+  "user_id": 1,
+  "name": "John Doe",
+  "role": "vendor"
 }
 ```
 

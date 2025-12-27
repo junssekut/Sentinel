@@ -10,9 +10,11 @@ Sentinel is a web-based access control system for managing vendor escorts in dat
 
 | Role | Description |
 |------|-------------|
-| **DCFM** | Data Center Facility Manager — Full access to users and tasks |
-| **SOC** | Security Operation Center — Gate management and monitoring |
+| **DCFM** | Data Center Facility Manager — Full access to users and tasks, can be PIC |
+| **SOC** | Security Operation Center — Gate management and monitoring, can be PIC |
 | **Vendor** | External party — Can only view their own assigned tasks |
+
+> **Note:** PIC (Person in Charge) is not a separate role. A PIC is a DCFM or SOC user assigned to escort a vendor in a task.
 
 ---
 

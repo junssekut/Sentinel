@@ -13,13 +13,14 @@ use Illuminate\View\View;
 class UserApprovalController extends Controller
 {
     /**
-     * Show list of pending vendor registrations (have face_image but no face_embedding).
+     * Show list of pending user registrations (have face_image but no face_embedding).
+     * Shows ALL roles (vendor, dcfm, soc) that need face approval.
      */
     public function index(): View
     {
-        $vendors = User::where('role', 'vendor')
-            ->whereNotNull('face_image')
+        $vendors = User::whereNotNull('face_image')
             ->whereNull('face_embedding')
+            ->orderBy('created_at', 'desc')
             ->get();
         return view('vendors.pending', compact('vendors'));
     }
@@ -62,6 +63,7 @@ class UserApprovalController extends Controller
     /**
      * Sync user face data to FastAPI server.
      * FastAPI generates the embedding from face_image and stores it.
+     * Uses sync=true to generate embedding immediately.
      */
     private function syncToFastAPIServer(User $user): bool
     {
@@ -69,18 +71,24 @@ class UserApprovalController extends Controller
             $serverUrl = env('FASTAPI_SERVER_URL', 'http://127.0.0.1:8001');
             $apiSecret = env('API_SECRET', 'dev-secret');
 
-            // Call the endpoint that generates embedding server-side from face_image
-            $response = Http::timeout(30)->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}", [
+            // Call with sync=true to generate embedding synchronously
+            $response = Http::timeout(60)->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}&sync=true", [
                 'name' => $user->name,
                 'role' => $user->role,
                 'face_image' => $user->face_image,
             ]);
 
             if ($response->successful()) {
-                // Refresh user to get the updated face_embedding from database
-                $user->refresh();
-                Log::info("User {$user->id} ({$user->name}) synced to FastAPI server successfully.");
-                return true;
+                $data = $response->json();
+                if ($data['status'] === 'success') {
+                    // Refresh user to get the updated face_embedding from database
+                    $user->refresh();
+                    Log::info("User {$user->id} ({$user->name}) synced to FastAPI server successfully.");
+                    return true;
+                } else {
+                    Log::warning("Failed to generate embedding for user {$user->id}: " . ($data['message'] ?? 'Unknown error'));
+                    return false;
+                }
             } else {
                 Log::warning("Failed to sync user {$user->id} to FastAPI: " . $response->body());
                 return false;

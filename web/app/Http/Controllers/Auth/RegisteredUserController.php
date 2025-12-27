@@ -58,7 +58,7 @@ class RegisteredUserController extends Controller
 
     /**
      * Enroll user's face to FastAPI server for embedding generation.
-     * This runs asynchronously - the embedding will be generated in background.
+     * Uses sync=true for immediate embedding generation.
      * 
      * Note: The user will need DCFM approval (account activation) before
      * they can use the face scanner, even though embedding is generated automatically.
@@ -69,25 +69,24 @@ class RegisteredUserController extends Controller
             $serverUrl = env('FASTAPI_SERVER_URL', 'http://127.0.0.1:8001');
             $apiSecret = env('API_SECRET', 'dev-secret');
 
-            // Fire and forget - don't block the registration flow
-            Http::timeout(5)
-                ->async()
-                ->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}", [
+            // Synchronous call with sync=true for immediate embedding
+            $response = Http::timeout(60)
+                ->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}&sync=true", [
                     'name' => $user->name,
                     'role' => $user->role,
                     'face_image' => $user->face_image,
-                ])
-                ->then(function ($response) use ($user) {
-                    if ($response->successful()) {
-                        Log::info("Face auto-enrolled for new user {$user->id} ({$user->name})");
-                    } else {
-                        Log::warning("Failed to auto-enroll face for user {$user->id}: " . $response->body());
-                    }
-                })
-                ->catch(function ($e) use ($user) {
-                    Log::warning("Could not connect to FastAPI for user {$user->id}: " . $e->getMessage());
-                });
+                ]);
 
+            if ($response->successful()) {
+                $data = $response->json();
+                if ($data['status'] === 'success') {
+                    Log::info("Face enrolled for new user {$user->id} ({$user->name})");
+                } else {
+                    Log::warning("Failed to generate embedding for user {$user->id}: " . ($data['message'] ?? 'Unknown error'));
+                }
+            } else {
+                Log::warning("Failed to enroll face for user {$user->id}: " . $response->body());
+            }
         } catch (\Exception $e) {
             // Don't fail registration if FastAPI is unavailable
             Log::warning("Exception during face enrollment for user {$user->id}: " . $e->getMessage());

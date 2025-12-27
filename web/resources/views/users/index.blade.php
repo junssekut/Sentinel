@@ -52,7 +52,6 @@
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
                                 @if($user->role === 'dcfm') bg-sentinel-blue/10 text-sentinel-blue border border-sentinel-blue/20
                                 @elseif($user->role === 'soc') bg-navy-800/10 text-navy-800 border border-navy/20
-                                @elseif($user->role === 'pic') bg-success/10 text-success border border-success/20
                                 @else bg-slate-200 text-slate-600 border border-slate-300 @endif">
                                 {{ $user->role }}
                             </span>

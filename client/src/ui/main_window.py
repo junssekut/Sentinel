@@ -64,6 +64,8 @@ class FaceClientApp:
         self.session_expires_at = None
         self.detected_vendors = []
         self.current_step = 1  # 1 = waiting vendor, 2 = waiting PIC, 3 = completed
+        self.last_wrong_pic_time = 0  # Track when wrong PIC was shown
+        self.wrong_pic_cooldown = 3  # Seconds to suppress repeated wrong PIC errors
         
         # Build UI
         self._build_ui()
@@ -430,19 +432,48 @@ class FaceClientApp:
         self.root.after(0, self._update_session_info)
         
         if state == "approved":
-            self._update_status(f"✅ ACCESS GRANTED", "success")
+            # Stop verification to show result
+            self.verify_running = False
+            
+            self._update_status("✅ ACCESS GRANTED", "success")
             self.root.after(0, lambda: self._update_step(3))
             self.hint_var.set("🚪 Door unlocking... Please enter")
-            self.detected_vendors = []
-            self.root.after(0, self._update_vendors_list)
             self.session_info_var.set("✓ Session approved!")
-            self.root.after(12000, self._start_session)
-            self.session_id = self.session_expires_at = None
+            
+            # Clear session after a delay to show the result
+            def _clear_and_restart():
+                self.detected_vendors = []
+                self.session_id = None
+                self.session_expires_at = None
+                self.root.after(0, self._update_vendors_list)
+                self.verify_running = True
+                self._start_session()
+            
+            # Wait 8 seconds before starting new session
+            self.root.after(8000, _clear_and_restart)
+            
         elif state == "waiting_pic":
-            self._update_status(f"Vendors OK\nNow Scan PIC", "warning")
-            self.root.after(0, lambda: self._update_step(2))
-            self.hint_var.set("💡 PIC: Please scan your face to approve")
+            # Check if this is an error (wrong PIC scanned)
+            if "No task" in message or "not assigned" in message:
+                # Wrong PIC detected - show error but KEEP scanning for correct PIC
+                # Use cooldown to prevent spamming same error
+                current_time = time.time()
+                if current_time - self.last_wrong_pic_time > self.wrong_pic_cooldown:
+                    # Show error with cooldown
+                    self.last_wrong_pic_time = current_time
+                    self._update_status("❌ Wrong PIC", "error")
+                    self.hint_var.set(f"⚠️ {message}")
+                # Don't stop verification - keep scanning for correct PIC!
+                # Just update step indicator
+                self.root.after(0, lambda: self._update_step(2))
+            else:
+                # Normal waiting for PIC - first time or vendor just scanned
+                self.last_wrong_pic_time = 0  # Reset cooldown
+                self._update_status("Vendors OK\nNow Scan PIC", "warning")
+                self.root.after(0, lambda: self._update_step(2))
+                self.hint_var.set("💡 PIC: Please scan your face to approve")
         elif state == "waiting_vendors":
+            self.last_wrong_pic_time = 0  # Reset cooldown
             vendor_count = len(vendors)
             if vendor_count > 0:
                 self._update_status(f"{vendor_count} Vendor(s) Scanned\nAdd more or scan PIC", "info")
@@ -453,8 +484,18 @@ class FaceClientApp:
         else:
             # Handle denied or other messages
             if "DENIED" in message.upper():
-                self._update_status(f"❌ {message}", "error")
-                self.hint_var.set("⚠️ Access denied. Check task assignment.")
+                # Stop verification briefly to show denied message
+                self.verify_running = False
+                self._update_status("❌ ACCESS DENIED", "error")
+                self.hint_var.set(f"⚠️ {message}")
+                
+                # Resume after 5 seconds with new session
+                def _resume_verify():
+                    self.verify_running = True
+                    self.last_wrong_pic_time = 0
+                    self._start_session()
+                
+                self.root.after(5000, _resume_verify)
             else:
                 self._update_status(message, "info")
 

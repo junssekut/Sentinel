@@ -47,7 +47,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'role' => 'required|in:vendor,dcfm,soc,pic',
+            'role' => 'required|in:vendor,dcfm,soc',
             'face_image' => 'nullable|string', // Base64 encoded image
         ]);
 
@@ -77,6 +77,7 @@ class UserController extends Controller
 
     /**
      * Enroll user face to FastAPI server (auto-approved from admin).
+     * Uses sync=true to generate embedding immediately.
      */
     private function enrollToFastAPI(User $user): string
     {
@@ -84,16 +85,25 @@ class UserController extends Controller
             $serverUrl = env('FASTAPI_SERVER_URL', 'http://127.0.0.1:8001');
             $apiSecret = env('API_SECRET', 'dev-secret');
 
-            $response = \Illuminate\Support\Facades\Http::timeout(30)
-                ->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}", [
+            // Use sync=true to generate embedding immediately
+            $response = \Illuminate\Support\Facades\Http::timeout(60)
+                ->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}&sync=true", [
                     'name' => $user->name,
                     'role' => $user->role,
                     'face_image' => $user->face_image,
                 ]);
 
             if ($response->successful()) {
-                \Log::info("User {$user->id} ({$user->name}) enrolled to FastAPI successfully.");
-                return 'success';
+                $data = $response->json();
+                if ($data['status'] === 'success') {
+                    // Refresh user to get updated face_embedding
+                    $user->refresh();
+                    \Log::info("User {$user->id} ({$user->name}) enrolled to FastAPI successfully.");
+                    return 'success';
+                } else {
+                    \Log::warning("Failed to generate embedding for user {$user->id}: " . ($data['message'] ?? 'Unknown error'));
+                    return 'failed';
+                }
             } else {
                 \Log::warning("Failed to enroll user {$user->id} to FastAPI: " . $response->body());
                 return 'failed';
@@ -204,18 +214,26 @@ class UserController extends Controller
             $serverUrl = env('FASTAPI_SERVER_URL', 'http://127.0.0.1:8001');
             $apiSecret = env('API_SECRET', 'dev-secret');
             
-            $response = \Illuminate\Support\Facades\Http::timeout(30)
-                ->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}", [
+            // Use sync=true for immediate embedding generation
+            $response = \Illuminate\Support\Facades\Http::timeout(60)
+                ->post("{$serverUrl}/api/faces/enroll-from-image?secret={$apiSecret}&sync=true", [
                     'name' => $user->name,
                     'role' => $user->role,
                     'face_image' => $user->face_image,
                 ]);
 
             if ($response->successful()) {
-                // Refresh to get updated embedding from database
-                $user->refresh();
-                return redirect()->route('users.show', $user)
-                    ->with('success', 'User face approved and synced successfully.');
+                $data = $response->json();
+                if ($data['status'] === 'success') {
+                    // Refresh to get updated embedding from database
+                    $user->refresh();
+                    return redirect()->route('users.show', $user)
+                        ->with('success', 'User face approved and synced successfully.');
+                } else {
+                    \Log::warning("Failed to generate embedding for user {$user->id}: " . ($data['message'] ?? 'Unknown error'));
+                    return redirect()->route('users.show', $user)
+                        ->with('error', 'Failed to generate face embedding: ' . ($data['message'] ?? 'Unknown error'));
+                }
             } else {
                 \Log::warning("Failed to sync user {$user->id} to FastAPI: " . $response->body());
                 return redirect()->route('users.show', $user)
@@ -224,7 +242,7 @@ class UserController extends Controller
         } catch (\Exception $e) {
             \Log::warning("Could not sync to FastAPI server: " . $e->getMessage());
             return redirect()->route('users.show', $user)
-                ->with('error', 'Could not connect to FastAPI server.');
+                ->with('error', 'Could not connect to FastAPI server. Make sure Python server is running.');
         }
     }
 
