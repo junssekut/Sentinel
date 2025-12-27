@@ -17,12 +17,27 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         @forelse($gates as $gate)
         <div class="group bg-white rounded-2xl shadow-bento hover:shadow-bento-hover transition-all duration-300 overflow-hidden border border-gray-100 relative">
-            <!-- Active Status Indicator -->
-            <div class="absolute top-0 right-0 m-4 z-10">
+            <!-- Status Indicators -->
+            <div class="absolute top-0 right-0 m-4 z-10 flex flex-col gap-2 items-end">
+                {{-- Active Status --}}
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-md
                     {{ $gate->is_active ? 'bg-success text-white border-2 border-white' : 'bg-slate-400 text-white border-2 border-white' }}">
                     {{ $gate->is_active ? '● Online' : '● Offline' }}
                 </span>
+                {{-- Integration Status --}}
+                @if($gate->door_id)
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shadow-sm
+                    {{ $gate->isIntegrated() ? ($gate->isOnline() ? 'bg-sentinel-blue/10 text-sentinel-blue border border-sentinel-blue/20' : 'bg-warning/10 text-warning border border-warning/20') : 'bg-slate-100 text-slate-500 border border-slate-200' }}">
+                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    {{ $gate->integration_status_label }}
+                </span>
+                @else
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
+                    Not Integrated
+                </span>
+                @endif
             </div>
 
             <!-- Icon Header -->
@@ -40,7 +55,12 @@
             <div class="p-6">
                 <h3 class="font-display font-bold text-navy-900 text-lg mb-1">{{ $gate->name }}</h3>
                 <p class="text-sm text-slate-500 mb-3 font-medium">{{ $gate->location ?? 'No location specified' }}</p>
-                <p class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded inline-block">{{ $gate->gate_id }}</p>
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">{{ $gate->gate_id }}</span>
+                    @if($gate->door_id)
+                    <span class="text-xs font-mono text-sentinel-blue bg-sentinel-blue/5 px-2 py-1 rounded border border-sentinel-blue/10">{{ $gate->door_id }}</span>
+                    @endif
+                </div>
             </div>
 
             <div class="px-6 py-4 bg-slate-50/50 border-t border-gray-100 flex items-center justify-between">
@@ -48,11 +68,16 @@
                     <svg class="w-4 h-4 text-sentinel-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                     <span class="text-xs text-slate-600 font-bold">{{ $gate->tasks_count ?? 0 }} task(s)</span>
                 </div>
-                @can('update', $gate)
-                <a href="{{ route('gates.edit', $gate) }}" class="text-sm text-sentinel-blue hover:text-sentinel-blue-dark font-bold hover:underline decoration-2 underline-offset-2">
-                    Edit
-                </a>
-                @endcan
+                <div class="flex items-center gap-3">
+                    <a href="{{ route('gates.show', $gate) }}" class="text-sm text-slate-600 hover:text-navy font-medium">
+                        View
+                    </a>
+                    @can('update', $gate)
+                    <a href="{{ route('gates.edit', $gate) }}" class="text-sm text-sentinel-blue hover:text-sentinel-blue-dark font-bold hover:underline decoration-2 underline-offset-2">
+                        Edit
+                    </a>
+                    @endcan
+                </div>
             </div>
         </div>
         @empty

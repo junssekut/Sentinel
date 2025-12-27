@@ -36,11 +36,11 @@ class GatePolicy
 
     /**
      * Determine whether the user can update the gate.
+     * SOC can update to manage door bindings, DCFM can update general info.
      */
     public function update(User $user, Gate $gate): bool
     {
-        // Only DCFM can update gates
-        return $user->isDcfm();
+        return $user->isDcfm() || $user->isSoc();
     }
 
     /**

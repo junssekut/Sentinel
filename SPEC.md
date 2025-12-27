@@ -271,6 +271,90 @@ Response (denied):
 
 ---
 
+### 10.2 Gate-Solenoid Integration
+
+Gates can be linked to physical solenoid door locks through the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `door_id` | string | Device identifier matching client DEVICE_ID |
+| `door_ip_address` | IP | Network address of solenoid IoT device |
+| `integration_status` | enum | not_integrated, integrated, offline |
+| `last_heartbeat_at` | timestamp | Last device status report |
+
+**Role Permissions:**
+- SOC can assign/modify door_id and door_ip_address
+- DCFM can view but not modify door integration settings
+
+---
+
+### 10.3 Door Access Logging API
+
+Endpoint:
+POST /api/doors/log-access
+
+Request payload:
+    {
+      "door_id": "string",
+      "event_type": "entry|exit|denied",
+      "vendor_id": int (optional),
+      "pic_id": int (optional),
+      "task_id": int (optional),
+      "session_id": "string" (optional),
+      "reason": "string" (optional)
+    }
+
+This endpoint is called by the Python server after access validation.
+
+---
+
+### 10.4 Live Access Logs (Polling)
+
+Endpoint:
+GET /api/gates/{gate}/access-logs
+
+Query parameters:
+- `limit`: Number of logs to return (default: 20)
+- `since`: ISO-8601 timestamp for incremental updates
+
+Response:
+    {
+      "gate_id": int,
+      "door_id": "string",
+      "integration_status": "string",
+      "is_online": boolean,
+      "logs": [
+        {
+          "id": int,
+          "event_type": "entry|exit|denied",
+          "vendor": "string",
+          "pic": "string",
+          "reason": "string or null",
+          "created_at": "ISO-8601",
+          "created_at_human": "string"
+        }
+      ],
+      "timestamp": "ISO-8601"
+    }
+
+The website polls this endpoint every 5 seconds for live updates.
+
+---
+
+### 10.5 Device Heartbeat API
+
+Endpoint:
+POST /api/doors/heartbeat
+
+Request payload:
+    {
+      "door_id": "string"
+    }
+
+Updates the gate's `last_heartbeat_at` and sets `integration_status` to "integrated".
+
+---
+
 ## 11. UI / UX Specification
 
 ### 11.1 Design Principles

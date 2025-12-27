@@ -205,7 +205,88 @@ This system explicitly does NOT:
 
 ---
 
-## 13. Future Extensions (Non-Binding)
+## 13. Gate-Solenoid Integration (Multi-Door Support)
+
+### 13.1 Overview
+
+The system now supports **multiple door locks** through a centralized mapping between:
+- Laravel Gates (database records)
+- Physical solenoid IoT devices
+
+Each Gate can be optionally linked to a physical door lock via the `door_id` field.
+
+### 13.2 Hitpoint Definitions
+
+| Component | Identifier | Description |
+|-----------|------------|-------------|
+| **Client (Face Scanner)** | `DEVICE_ID` (env) | Unique identifier configured in client `.env` file |
+| **Gate Record** | `gates.door_id` (DB) | Database column storing the mapped DEVICE_ID |
+| **Gate Record** | `gates.door_ip_address` (DB) | IP address of the solenoid IoT device |
+| **Session Start** | `gate_id` (API param) | Passed from client, matched against `gates.gate_id` |
+| **Solenoid Device** | IP Address | Physical network address of ESP8266 |
+
+### 13.3 Mapping Flow
+
+```
+Client DEVICE_ID
+       ↓
+Session Start Request (gate_id parameter)
+       ↓
+Server matches gate_id → gates.gate_id in DB
+       ↓
+If gate.door_id and gate.door_ip_address exist
+       ↓
+Server sends HTTP command to gate.door_ip_address
+       ↓
+Solenoid receives /unlock or /lock
+```
+
+### 13.4 Task-Based Access Control
+
+Before unlocking any door, the server validates:
+
+1. **Active Task Exists**: Vendor-PIC pair has an active task
+2. **Time Window Valid**: Current time is within task's start_time and end_time
+3. **Gate Authorized**: The gate is in the task's allowed gates list
+
+If any check fails, access is **denied** and no unlock command is sent.
+
+### 13.5 Access Logging
+
+All access attempts are logged to the Laravel database:
+
+| Event Type | Description |
+|------------|-------------|
+| `entry` | Door successfully unlocked |
+| `exit` | Door lock sequence completed |
+| `denied` | Access denied due to validation failure |
+
+Logs are viewable in real-time on the Gate detail page.
+
+### 13.6 Heartbeat Monitoring
+
+IoT devices can report their status via:
+
+```
+POST /api/doors/heartbeat
+{
+  "door_id": "device-identifier"
+}
+```
+
+This updates the gate's `last_heartbeat_at` timestamp and sets `integration_status` to "integrated".
+
+### 13.7 Integration Status
+
+| Status | Description |
+|--------|-------------|
+| `not_integrated` | No door_id assigned or never connected |
+| `integrated` | door_id assigned and heartbeat received |
+| `offline` | Integrated but no recent heartbeat (>5 min) |
+
+---
+
+## 14. Future Extensions (Non-Binding)
 
 Possible future additions without redesign:
 - HTTPS / mutual auth
@@ -217,13 +298,15 @@ These are **optional** and not required for the current scope.
 
 ---
 
-## 14. Summary
+## 15. Summary
 
 This specification defines a **pure, server-driven door lock IoT actuator**.
 
 - The IoT device only listens and executes
 - The server owns all intelligence and timing
 - External systems influence decisions indirectly via the server
+- Multiple doors are supported via Gate-Solenoid mapping
 
 This design is intentionally simple, deterministic, and suitable for **agentic AI orchestration**.
+
 

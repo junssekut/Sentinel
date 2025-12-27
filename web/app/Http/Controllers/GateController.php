@@ -96,6 +96,25 @@ class GateController extends Controller
 
         $validated['is_active'] = $request->boolean('is_active', true);
 
+        // Handle door integration fields (SOC can manage these)
+        $user = $request->user();
+        if ($user && $user->isSoc()) {
+            $doorValidated = $request->validate([
+                'door_id' => 'nullable|string|max:255|unique:gates,door_id,' . $gate->id,
+                'door_ip_address' => 'nullable|ip',
+            ]);
+            
+            $validated = array_merge($validated, $doorValidated);
+            
+            // Update integration status based on door_id
+            if (!empty($validated['door_id'])) {
+                $validated['integration_status'] = $gate->last_heartbeat_at ? 'integrated' : 'not_integrated';
+            } else {
+                $validated['integration_status'] = 'not_integrated';
+                $validated['door_ip_address'] = null;
+            }
+        }
+
         $gate->update($validated);
 
         return redirect()->route('gates.show', $gate)
