@@ -144,7 +144,7 @@ app/
 | Create tasks | ❌ | ✅ | ❌ |
 | Revoke tasks | ❌ | ✅ | ❌ |
 | Manage users | ❌ | ✅ | ❌ |
-| Manage gates | ❌ | ✅ | ❌ |
+| Manage gates | ❌ | ❌ | ✅ |
 | View audit logs | ❌ | ✅ | ✅ |
 
 ---

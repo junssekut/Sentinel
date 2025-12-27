@@ -30,17 +30,17 @@ class GatePolicy
      */
     public function create(User $user): bool
     {
-        // Only DCFM can create gates
-        return $user->isDcfm();
+        // Only SOC can create gates
+        return $user->isSoc();
     }
 
     /**
      * Determine whether the user can update the gate.
-     * SOC can update to manage door bindings, DCFM can update general info.
+     * Only SOC can update gates (including door bindings).
      */
     public function update(User $user, Gate $gate): bool
     {
-        return $user->isDcfm() || $user->isSoc();
+        return $user->isSoc();
     }
 
     /**
@@ -48,7 +48,7 @@ class GatePolicy
      */
     public function delete(User $user, Gate $gate): bool
     {
-        // Only DCFM can delete gates
-        return $user->isDcfm();
+        // Only SOC can delete gates
+        return $user->isSoc();
     }
 }

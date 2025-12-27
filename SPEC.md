@@ -77,11 +77,13 @@ If a feature feels complex:
 - Full visibility and control over all tasks
 
 ### 3.3 SOC (Security Operation Center)
-- Internal monitoring role
-- Read-only access to:
-  - All tasks
-  - All vendor assignments
-- No task modification permissions
+- Internal security operations role
+- Responsibilities:
+  - Manage gates (create, edit, delete)
+  - Configure door integration (door_id, IP address)
+  - Monitor all tasks and vendor assignments
+- View access to all tasks (read-only)
+- Full control over gate management
 
 ---
 
