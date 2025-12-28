@@ -15,14 +15,16 @@
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
-#include <SPI.h>  // Initialize SPI to stabilize RFID pins even when not in use
 #include "config.h"
 
 // Pin definitions
 #define RELAY_PIN   D0
-#define LED_HIJAU   D1
-#define LED_MERAH   D3
-#define BUZZER      D8
+#define LED_HIJAU   D1  // Green LED
+#define LED_MERAH   D3  // Red LED
+#define BUZZER      D8  // D8 (GPIO15) MUST be initialized LOW for boot!
+
+// Configuration - set to true to enable buzzer sounds
+#define BUZZER_ENABLED false
 
 // Door states
 enum DoorState { LOCKED, UNLOCKED };
@@ -40,10 +42,7 @@ void setDoorState(DoorState state) {
         digitalWrite(RELAY_PIN, HIGH);
         Serial.println("[DOOR] UNLOCKED");
     } else {
-        // Small delay before switching off to reduce back-EMF spike
-        delay(50);
         digitalWrite(RELAY_PIN, LOW);
-        delay(50);  // Wait for relay to settle
         Serial.println("[DOOR] LOCKED");
     }
 }
@@ -65,23 +64,32 @@ void sendJsonResponse(int code, String message) {
 void feedbackSuccess() {
     digitalWrite(LED_HIJAU, HIGH);
     
-    // Double beep for success
+    // Double beep for success (only if buzzer enabled)
+    #if BUZZER_ENABLED
     for (int i = 0; i < 2; i++) {
         digitalWrite(BUZZER, HIGH);
         delay(100);
         digitalWrite(BUZZER, LOW);
         delay(100);
+        yield();  // Prevent WDT reset
     }
+    #endif
     
     delay(500);
+    yield();  // Prevent WDT reset
     digitalWrite(LED_HIJAU, LOW);
 }
 
 void feedbackDenied() {
     digitalWrite(LED_MERAH, HIGH);
+    #if BUZZER_ENABLED
     digitalWrite(BUZZER, HIGH);
+    #endif
     delay(1500);
+    yield();  // Prevent WDT reset
+    #if BUZZER_ENABLED
     digitalWrite(BUZZER, LOW);
+    #endif
     digitalWrite(LED_MERAH, LOW);
 }
 
@@ -135,31 +143,55 @@ void setup() {
     pinMode(RELAY_PIN, OUTPUT);
     pinMode(LED_HIJAU, OUTPUT);
     pinMode(LED_MERAH, OUTPUT);
-    pinMode(BUZZER, OUTPUT);
+    pinMode(BUZZER, OUTPUT);  // D8 MUST be initialized for boot!
 
     // Set default states
     digitalWrite(RELAY_PIN, LOW);
     digitalWrite(LED_HIJAU, LOW);
     digitalWrite(LED_MERAH, LOW);
-    digitalWrite(BUZZER, LOW);
-    
-    // Initialize SPI to stabilize RFID module pins (D5, D6, D7, D2, D4)
-    SPI.begin();
+    digitalWrite(BUZZER, LOW);  // D8 MUST be LOW for boot!
     
     setDoorState(LOCKED);
 
-    // Connect to WiFi
+    // Connect to WiFi - Debug credentials
+    Serial.println("[WIFI] Debug credentials:");
+    Serial.print("  SSID: '");
+    Serial.print(WIFI_SSID);
+    Serial.println("'");
+    yield();  // Prevent WDT reset
+    Serial.print("  Password: '");
+    Serial.print(WIFI_PASSWORD);
+    Serial.println("'");
+    Serial.print("  Password length: ");
+    Serial.println(strlen(WIFI_PASSWORD));
+    yield();  // Prevent WDT reset
+    delay(100);  // Give system time to process
+    
     Serial.print("[WIFI] Connecting to ");
     Serial.println(WIFI_SSID);
+    yield();  // Prevent WDT reset
     WiFi.mode(WIFI_STA);
+    delay(100);  // Give WiFi time to initialize
+    yield();
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+        // Blink red LED while connecting
+        digitalWrite(LED_MERAH, !digitalRead(LED_MERAH));
         delay(500);
+        yield();  // Prevent WDT reset
         Serial.print(".");
         attempts++;
+        
+        // Print status every 5 attempts for debugging
+        if (attempts % 5 == 0) {
+            Serial.print(" (status: ");
+            Serial.print(WiFi.status());
+            Serial.print(") ");
+        }
     }
+    digitalWrite(LED_MERAH, LOW);  // Turn off red LED after connection attempt
 
     if (WiFi.status() == WL_CONNECTED) {
         Serial.println();
@@ -169,8 +201,13 @@ void setup() {
         // Success blink on WiFi connect
         feedbackSuccess();
     } else {
-        Serial.println("\n[WIFI] Failed to connect. Restarting...");
+        Serial.println();
+        Serial.print("[WIFI] Failed to connect. Status code: ");
+        Serial.println(WiFi.status());
+        Serial.println("[WIFI] Status codes: 0=IDLE, 1=NO_SSID_AVAIL, 2=SCAN_COMPLETED, 3=CONNECTED, 4=CONNECT_FAILED, 5=CONNECTION_LOST, 6=DISCONNECTED, 7=WRONG_PASSWORD");
+        Serial.println("[WIFI] Check SSID and password in config.h");
         feedbackDenied();
+        delay(5000);  // Wait 5 seconds before restart so you can read the error
         ESP.restart();
     }
 
@@ -189,6 +226,17 @@ void setup() {
     Serial.println("[READY] Waiting for commands...");
 }
 
+// Timing for standby LED blink
+unsigned long lastBlinkTime = 0;
+bool ledState = false;
+
 void loop() {
     server.handleClient();
+    
+    // Blink green LED when on standby (every 1 second)
+    if (millis() - lastBlinkTime >= 1000) {
+        lastBlinkTime = millis();
+        ledState = !ledState;
+        digitalWrite(LED_HIJAU, ledState);
+    }
 }
