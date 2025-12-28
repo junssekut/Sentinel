@@ -29,9 +29,9 @@ class FaceClientApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.configure(bg=COLORS["bg_window"])
         
-        # Compact window size
-        window_width = 900
-        window_height = 700
+        # Compact window size (VM-compatible)
+        window_width = 700
+        window_height = 550
         self.root.geometry(f"{window_width}x{window_height}")
         self.root.resizable(False, False)
         
@@ -138,8 +138,8 @@ class FaceClientApp:
         left_col = tk.Frame(content_frame, bg=COLORS["bg_window"])
         left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
         
-        self.video_card = BentoCard(left_col, width=500, height=500, 
-                                    bg_color=COLORS["bg_card"], radius=20)
+        self.video_card = BentoCard(left_col, width=380, height=380, 
+                                    bg_color=COLORS["bg_card"], radius=16)
         self.video_card.pack(fill=tk.BOTH, expand=True)
         
         self.video_label = tk.Label(
@@ -174,31 +174,31 @@ class FaceClientApp:
         right_col.grid(row=0, column=1, sticky="nsew")
         
         # Status Card (prominent)
-        self.status_card = BentoCard(right_col, width=300, height=100, 
-                                     bg_color=COLORS["accent_light"], radius=16)
-        self.status_card.pack(fill=tk.X, pady=(0, 15))
+        self.status_card = BentoCard(right_col, width=250, height=80, 
+                                     bg_color=COLORS["accent_light"], radius=12)
+        self.status_card.pack(fill=tk.X, pady=(0, 10))
         
         self.status_var = tk.StringVar(value="Initializing...")
         self.status_label = tk.Label(
             self.status_card.container,
             textvariable=self.status_var,
-            font=get_font(16, "bold"),
+            font=get_font(14, "bold"),
             fg=COLORS["accent"],
             bg=COLORS["accent_light"],
-            wraplength=260,
+            wraplength=220,
             justify="center"
         )
-        self.status_label.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+        self.status_label.pack(expand=True, fill=tk.BOTH, padx=8, pady=8)
 
         # Instructions Card
-        self.instructions_card = BentoCard(right_col, width=300, height=200, radius=16)
-        self.instructions_card.pack(fill=tk.X, pady=(0, 15))
+        self.instructions_card = BentoCard(right_col, width=250, height=160, radius=12)
+        self.instructions_card.pack(fill=tk.X, pady=(0, 10))
         
         instr_inner = tk.Frame(self.instructions_card.container, bg=COLORS["bg_card"])
-        instr_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=12)
+        instr_inner.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
         
-        tk.Label(instr_inner, text="Instructions", font=get_font(13, "bold"),
-                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w", pady=(0, 10))
+        tk.Label(instr_inner, text="Instructions", font=get_font(11, "bold"),
+                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w", pady=(0, 6))
         
         # Step indicators
         self.step_frames = []
@@ -244,8 +244,8 @@ class FaceClientApp:
         self.hint_label.pack(anchor="w", pady=(10, 0))
 
         # Session Info Card
-        self.session_card = BentoCard(right_col, width=300, height=70, radius=16)
-        self.session_card.pack(fill=tk.X, pady=(0, 15))
+        self.session_card = BentoCard(right_col, width=250, height=50, radius=12)
+        self.session_card.pack(fill=tk.X, pady=(0, 10))
         
         session_inner = tk.Frame(self.session_card.container, bg=COLORS["bg_card"])
         session_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
@@ -255,7 +255,7 @@ class FaceClientApp:
                  fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w")
 
         # Vendors Card
-        self.vendors_card = BentoCard(right_col, width=300, height=90, radius=16)
+        self.vendors_card = BentoCard(right_col, width=250, height=70, radius=12)
         self.vendors_card.pack(fill=tk.X)
         
         vendors_inner = tk.Frame(self.vendors_card.container, bg=COLORS["bg_card"])
