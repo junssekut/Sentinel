@@ -29,9 +29,9 @@ class FaceClientApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.configure(bg=COLORS["bg_window"])
         
-        # Compact window size (VM-compatible)
-        window_width = 700
-        window_height = 550
+        # Minimal window size (VM-compatible)
+        window_width = 640
+        window_height = 480
         self.root.geometry(f"{window_width}x{window_height}")
         self.root.resizable(False, False)
         
@@ -109,164 +109,122 @@ class FaceClientApp:
             time.sleep(HEARTBEAT_INTERVAL)
 
     def _build_ui(self):
+        """Minimal UI for VM compatibility - no Canvas/BentoCard, just simple Frames"""
         main_pad = tk.Frame(self.root, bg=COLORS["bg_window"])
-        main_pad.pack(fill=tk.BOTH, expand=True, padx=30, pady=30)
+        main_pad.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
         
-        # Header
+        # Header - simplified
         header_frame = tk.Frame(main_pad, bg=COLORS["bg_window"])
-        header_frame.pack(fill=tk.X, pady=(0, 20))
-        
-        try:
-            logo_path = ASSETS_DIR / "images" / "sentinel-logo.png"
-            pil_img = Image.open(logo_path)
-            pil_img.thumbnail((40, 40), Image.Resampling.LANCZOS)
-            self.logo_img = ImageTk.PhotoImage(pil_img)
-            tk.Label(header_frame, image=self.logo_img, bg=COLORS["bg_window"]).pack(side=tk.LEFT, padx=(0, 12))
-        except Exception:
-            pass
-            
-        tk.Label(header_frame, text="Sentinel Access", font=get_font(22, "bold"), 
+        header_frame.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(header_frame, text="Sentinel Access", font=get_font(18, "bold"), 
                  fg=COLORS["accent"], bg=COLORS["bg_window"]).pack(side=tk.LEFT)
 
         # Main content - two columns
         content_frame = tk.Frame(main_pad, bg=COLORS["bg_window"])
         content_frame.pack(fill=tk.BOTH, expand=True)
-        content_frame.columnconfigure(0, weight=3)
-        content_frame.columnconfigure(1, weight=2)
+        content_frame.columnconfigure(0, weight=2)
+        content_frame.columnconfigure(1, weight=1)
         
-        # LEFT: Camera
+        # LEFT: Camera - simple frame, no BentoCard
         left_col = tk.Frame(content_frame, bg=COLORS["bg_window"])
-        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         
-        self.video_card = BentoCard(left_col, width=380, height=380, 
-                                    bg_color=COLORS["bg_card"], radius=16)
-        self.video_card.pack(fill=tk.BOTH, expand=True)
+        # Video container - simple frame with border
+        video_container = tk.Frame(left_col, bg=COLORS["bg_card"], bd=1, relief="solid")
+        video_container.pack(fill=tk.BOTH, expand=True)
         
         self.video_label = tk.Label(
-            self.video_card.container,
+            video_container,
             bg="#1a1a2e",
-            text="Initializing Camera...",
-            font=get_font(14),
+            text="Initializing...",
+            font=get_font(12),
             fg=COLORS["text_secondary"]
         )
-        self.video_label.pack(expand=True, fill=tk.BOTH, padx=8, pady=8)
+        self.video_label.pack(expand=True, fill=tk.BOTH, padx=2, pady=2)
         
         # Camera selector
-        camera_frame = tk.Frame(left_col, bg=COLORS["bg_window"])
-        camera_frame.pack(fill=tk.X, pady=(10, 0))
-        
         self.available_cameras = self._detect_cameras()
         self.camera_var = tk.StringVar(value=self.available_cameras.get(CAMERA_INDEX, f"Camera {CAMERA_INDEX}"))
-        
         camera_options = list(self.available_cameras.values()) if self.available_cameras else ["Camera 0"]
         self.camera_dropdown = ttk.Combobox(
-            camera_frame, 
-            textvariable=self.camera_var,
-            values=camera_options,
-            state="readonly",
-            width=40
+            left_col, textvariable=self.camera_var, values=camera_options,
+            state="readonly", width=30
         )
-        self.camera_dropdown.pack(fill=tk.X)
+        self.camera_dropdown.pack(fill=tk.X, pady=(5, 0))
         self.camera_dropdown.bind("<<ComboboxSelected>>", self._on_camera_change)
 
-        # RIGHT: Instructions and Status
+        # RIGHT: Status panel - simple frames
         right_col = tk.Frame(content_frame, bg=COLORS["bg_window"])
         right_col.grid(row=0, column=1, sticky="nsew")
         
-        # Status Card (prominent)
-        self.status_card = BentoCard(right_col, width=250, height=80, 
-                                     bg_color=COLORS["accent_light"], radius=12)
-        self.status_card.pack(fill=tk.X, pady=(0, 10))
+        # Status - simple label with background
+        status_frame = tk.Frame(right_col, bg=COLORS["accent_light"], bd=1, relief="solid")
+        status_frame.pack(fill=tk.X, pady=(0, 8))
         
         self.status_var = tk.StringVar(value="Initializing...")
         self.status_label = tk.Label(
-            self.status_card.container,
-            textvariable=self.status_var,
-            font=get_font(14, "bold"),
-            fg=COLORS["accent"],
-            bg=COLORS["accent_light"],
-            wraplength=220,
-            justify="center"
+            status_frame, textvariable=self.status_var,
+            font=get_font(12, "bold"), fg=COLORS["accent"], bg=COLORS["accent_light"],
+            wraplength=180, justify="center", pady=10
         )
-        self.status_label.pack(expand=True, fill=tk.BOTH, padx=8, pady=8)
+        self.status_label.pack(fill=tk.X)
+        # Store reference for later updates
+        self.status_frame = status_frame
 
-        # Instructions Card
-        self.instructions_card = BentoCard(right_col, width=250, height=160, radius=12)
-        self.instructions_card.pack(fill=tk.X, pady=(0, 10))
+        # Instructions - simple frame
+        instr_frame = tk.Frame(right_col, bg=COLORS["bg_card"], bd=1, relief="solid")
+        instr_frame.pack(fill=tk.X, pady=(0, 8))
         
-        instr_inner = tk.Frame(self.instructions_card.container, bg=COLORS["bg_card"])
-        instr_inner.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
+        instr_inner = tk.Frame(instr_frame, bg=COLORS["bg_card"])
+        instr_inner.pack(fill=tk.BOTH, padx=8, pady=6)
         
-        tk.Label(instr_inner, text="Instructions", font=get_font(11, "bold"),
-                 fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w", pady=(0, 6))
-        
-        # Step indicators
-        self.step_frames = []
-        for i, step_text in enumerate([
-            "Scan Vendor Face(s)",
-            "Scan PIC to Approve",
-            "Access Result"
-        ], 1):
-            step_frame = tk.Frame(instr_inner, bg=COLORS["bg_card"])
-            step_frame.pack(fill=tk.X, pady=3)
-            
-            self.step_indicator = tk.Label(
-                step_frame, 
-                text=f"{i}.", 
-                font=get_font(12, "bold"),
-                fg=COLORS["text_secondary"], 
-                bg=COLORS["bg_card"],
-                width=3
-            )
-            self.step_indicator.pack(side=tk.LEFT)
-            
-            step_label = tk.Label(
-                step_frame,
-                text=step_text,
-                font=get_font(12),
-                fg=COLORS["text_secondary"],
-                bg=COLORS["bg_card"]
-            )
-            step_label.pack(side=tk.LEFT)
-            
-            self.step_frames.append((step_frame, self.step_indicator, step_label))
-        
-        # Hint label
-        self.hint_var = tk.StringVar(value="Look at the camera to start")
-        self.hint_label = tk.Label(
-            instr_inner,
-            textvariable=self.hint_var,
-            font=get_font(10),
-            fg=COLORS["accent"],
-            bg=COLORS["bg_card"],
-            wraplength=250
-        )
-        self.hint_label.pack(anchor="w", pady=(10, 0))
-
-        # Session Info Card
-        self.session_card = BentoCard(right_col, width=250, height=50, radius=12)
-        self.session_card.pack(fill=tk.X, pady=(0, 10))
-        
-        session_inner = tk.Frame(self.session_card.container, bg=COLORS["bg_card"])
-        session_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
-        
-        self.session_info_var = tk.StringVar(value="No active session")
-        tk.Label(session_inner, textvariable=self.session_info_var, font=get_font(11),
+        tk.Label(instr_inner, text="Steps:", font=get_font(10, "bold"),
                  fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w")
+        
+        self.step_frames = []
+        for i, step_text in enumerate(["1. Scan Vendor", "2. Scan PIC", "3. Result"], 1):
+            step_frame = tk.Frame(instr_inner, bg=COLORS["bg_card"])
+            step_frame.pack(fill=tk.X)
+            
+            indicator = tk.Label(step_frame, text=f"{i}.", font=get_font(10),
+                fg=COLORS["text_secondary"], bg=COLORS["bg_card"], width=2)
+            indicator.pack(side=tk.LEFT)
+            
+            label = tk.Label(step_frame, text=step_text[3:], font=get_font(10),
+                fg=COLORS["text_secondary"], bg=COLORS["bg_card"])
+            label.pack(side=tk.LEFT)
+            
+            self.step_frames.append((step_frame, indicator, label))
+        
+        # Hint
+        self.hint_var = tk.StringVar(value="Look at camera")
+        self.hint_label = tk.Label(
+            instr_inner, textvariable=self.hint_var, font=get_font(9),
+            fg=COLORS["accent"], bg=COLORS["bg_card"], wraplength=180
+        )
+        self.hint_label.pack(anchor="w", pady=(4, 0))
 
-        # Vendors Card
-        self.vendors_card = BentoCard(right_col, width=250, height=70, radius=12)
-        self.vendors_card.pack(fill=tk.X)
+        # Session info - simple
+        session_frame = tk.Frame(right_col, bg=COLORS["bg_card"], bd=1, relief="solid")
+        session_frame.pack(fill=tk.X, pady=(0, 8))
         
-        vendors_inner = tk.Frame(self.vendors_card.container, bg=COLORS["bg_card"])
-        vendors_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+        self.session_info_var = tk.StringVar(value="No session")
+        tk.Label(session_frame, textvariable=self.session_info_var, font=get_font(9),
+                 fg=COLORS["text_primary"], bg=COLORS["bg_card"], pady=4).pack(anchor="w", padx=8)
+
+        # Vendors - simple
+        vendors_frame = tk.Frame(right_col, bg=COLORS["bg_card"], bd=1, relief="solid")
+        vendors_frame.pack(fill=tk.X)
         
-        tk.Label(vendors_inner, text="Vendors Detected", font=get_font(11, "bold"),
+        vendors_inner = tk.Frame(vendors_frame, bg=COLORS["bg_card"])
+        vendors_inner.pack(fill=tk.BOTH, padx=8, pady=4)
+        
+        tk.Label(vendors_inner, text="Vendors:", font=get_font(9, "bold"),
                  fg=COLORS["text_secondary"], bg=COLORS["bg_card"]).pack(anchor="w")
         
-        self.vendors_list_var = tk.StringVar(value="None yet")
-        tk.Label(vendors_inner, textvariable=self.vendors_list_var, font=get_font(12),
-                 fg=COLORS["text_primary"], bg=COLORS["bg_card"], wraplength=250,
+        self.vendors_list_var = tk.StringVar(value="None")
+        tk.Label(vendors_inner, textvariable=self.vendors_list_var, font=get_font(10),
+                 fg=COLORS["text_primary"], bg=COLORS["bg_card"], wraplength=180,
                  justify="left").pack(anchor="w")
 
     def _detect_cameras(self) -> dict:
@@ -304,7 +262,7 @@ class FaceClientApp:
         bg = bg_map.get(status_type, COLORS["accent_light"])
         fg = fg_map.get(status_type, COLORS["accent"])
         self.status_label.configure(fg=fg, bg=bg)
-        self.status_card.set_background_color(bg)
+        self.status_frame.configure(bg=bg)
 
     def _update_step(self, step: int):
         """Update step indicators to show current progress."""
@@ -317,11 +275,11 @@ class FaceClientApp:
             elif i == step:
                 # Current
                 indicator.configure(text=f"{i}.", fg=COLORS["accent"])
-                label.configure(fg=COLORS["text_primary"], font=get_font(12, "bold"))
+                label.configure(fg=COLORS["text_primary"], font=get_font(10, "bold"))
             else:
                 # Future
                 indicator.configure(text=f"{i}.", fg=COLORS["text_secondary"])
-                label.configure(fg=COLORS["text_secondary"], font=get_font(12))
+                label.configure(fg=COLORS["text_secondary"], font=get_font(10))
 
     def _start_session(self):
         result = self.api.start_session()
