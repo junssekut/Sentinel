@@ -24,3 +24,6 @@ class AccessValidateResponse(BaseModel):
     approved: bool
     reason: str
     similarity: Optional[float] = None
+
+class HeartbeatRequest(BaseModel):
+    device_id: str

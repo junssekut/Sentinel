@@ -17,35 +17,20 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         @forelse($gates as $gate)
         <div class="group bg-white rounded-2xl shadow-bento hover:shadow-bento-hover transition-all duration-300 overflow-hidden border border-gray-100 relative">
-            <!-- Status Indicators -->
-            <div class="absolute top-0 right-0 m-4 z-10 flex flex-col gap-2 items-end">
-                {{-- Active Status --}}
+            <!-- Status Indicator -->
+            <div class="absolute top-0 right-0 m-4 z-10">
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-md
-                    {{ $gate->is_active ? 'bg-success text-white border-2 border-white' : 'bg-slate-400 text-white border-2 border-white' }}">
-                    {{ $gate->is_active ? '● Online' : '● Offline' }}
+                    {{ $gate->isOnline() ? 'bg-success text-white border-2 border-white' : 'bg-slate-400 text-white border-2 border-white' }}">
+                    {{ $gate->isOnline() ? '● Online' : '● Offline' }}
                 </span>
-                {{-- Integration Status --}}
-                @if($gate->door_id)
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shadow-sm
-                    {{ $gate->isIntegrated() ? ($gate->isOnline() ? 'bg-sentinel-blue/10 text-sentinel-blue border border-sentinel-blue/20' : 'bg-warning/10 text-warning border border-warning/20') : 'bg-slate-100 text-slate-500 border border-slate-200' }}">
-                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                    </svg>
-                    {{ $gate->integration_status_label }}
-                </span>
-                @else
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
-                    Not Integrated
-                </span>
-                @endif
             </div>
 
             <!-- Icon Header -->
             <div class="relative bg-gradient-to-br from-navy-900 to-navy-800 h-32 overflow-hidden">
                 <div class="absolute inset-0 bg-mesh opacity-30"></div>
                 <div class="absolute inset-0 flex items-center justify-center">
-                    <div class="w-16 h-16 rounded-2xl {{ $gate->is_active ? 'bg-success/20' : 'bg-slate-400/20' }} backdrop-blur-sm flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
-                        <svg class="w-8 h-8 {{ $gate->is_active ? 'text-success' : 'text-slate-300' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="w-16 h-16 rounded-2xl {{ $gate->isOnline() ? 'bg-success/20' : 'bg-slate-400/20' }} backdrop-blur-sm flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
+                        <svg class="w-8 h-8 {{ $gate->isOnline() ? 'text-success' : 'text-slate-300' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path>
                         </svg>
                     </div>

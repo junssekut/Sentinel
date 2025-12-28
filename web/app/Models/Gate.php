@@ -100,13 +100,28 @@ class Gate extends Model
 
     /**
      * Get the integration status label for display.
+     * Shows relative heartbeat time when online.
      */
     public function getIntegrationStatusLabelAttribute(): string
     {
-        return match($this->integration_status) {
-            'integrated' => $this->isOnline() ? 'Online' : 'Offline',
-            'offline' => 'Offline',
-            default => 'Not Integrated',
-        };
+        if ($this->integration_status === 'integrated') {
+            if ($this->isOnline() && $this->last_heartbeat_at) {
+                return $this->last_heartbeat_at->diffForHumans();
+            }
+            return 'Offline';
+        }
+        
+        return 'Not Integrated';
+    }
+
+    /**
+     * Get the last heartbeat as a relative time string.
+     */
+    public function getLastHeartbeatRelativeAttribute(): ?string
+    {
+        if (!$this->last_heartbeat_at) {
+            return null;
+        }
+        return $this->last_heartbeat_at->diffForHumans();
     }
 }

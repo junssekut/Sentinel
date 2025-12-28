@@ -45,3 +45,15 @@ def validate_access(request: schemas.AccessValidateRequest, http_request: Reques
         content=result,
         status_code=200 if result['approved'] else 403
     )
+
+@app.post("/api/heartbeat")
+def heartbeat(request: schemas.HeartbeatRequest, db: Session = Depends(database.get_db)):
+    """
+    Receive heartbeat from client device and update gate status directly.
+    """
+    result = crud.update_gate_heartbeat(db, request.device_id)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    
+    return {"success": True, "message": f"Heartbeat OK for {request.device_id}", "gate_name": result.get("gate_name")}

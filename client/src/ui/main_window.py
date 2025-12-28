@@ -9,6 +9,7 @@ from PIL import Image, ImageTk
 
 from ..utils.helpers import (
     COLORS, ASSETS_DIR, CAMERA_INDEX, CAPTURE_INTERVAL, 
+    DEVICE_ID, HEARTBEAT_INTERVAL,
     get_font, check_fonts
 )
 from .widgets import BentoCard
@@ -87,9 +88,25 @@ class FaceClientApp:
         # Start session
         threading.Thread(target=self._start_session, daemon=True).start()
         
+        # Start heartbeat loop (if DEVICE_ID is configured)
+        if DEVICE_ID:
+            threading.Thread(target=self._heartbeat_loop, daemon=True).start()
+        else:
+            print("Warning: DEVICE_ID not set. Heartbeat disabled.")
+        
         # Bring window to front
         self.root.lift()
         self.root.focus_force()
+
+    def _heartbeat_loop(self):
+        """Background loop to send heartbeats to the server."""
+        while self.running:
+            result = self.api.send_heartbeat(DEVICE_ID)
+            if result.get("success"):
+                print(f"Heartbeat OK: {DEVICE_ID}")
+            else:
+                print(f"Heartbeat failed: {result.get('error')}")
+            time.sleep(HEARTBEAT_INTERVAL)
 
     def _build_ui(self):
         main_pad = tk.Frame(self.root, bg=COLORS["bg_window"])

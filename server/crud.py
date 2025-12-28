@@ -225,3 +225,24 @@ def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_addr
     # Success!
     log_access(db, vendor, pic, gate, task, True, "OK", ip_address)
     return {"approved": True, "reason": "OK"}
+
+
+def update_gate_heartbeat(db: Session, device_id: str) -> dict:
+    """
+    Update a gate's heartbeat timestamp and integration status.
+    Called by client devices to indicate they are online.
+    """
+    from zoneinfo import ZoneInfo
+    
+    gate = db.query(models.Gate).filter(models.Gate.door_id == device_id).first()
+    
+    if not gate:
+        return {"success": False, "error": f"Gate not found for device_id: {device_id}"}
+    
+    # Use Asia/Jakarta timezone to match Laravel app
+    jakarta_tz = ZoneInfo("Asia/Jakarta")
+    gate.last_heartbeat_at = datetime.now(jakarta_tz)
+    gate.integration_status = "integrated"
+    db.commit()
+    
+    return {"success": True, "gate_id": gate.id, "gate_name": gate.name}

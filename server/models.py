@@ -35,6 +35,10 @@ class Gate(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     gate_id = Column(String, unique=True, index=True) # The IoT ID
+    door_id = Column(String, nullable=True, index=True)  # Device ID for heartbeat
+    door_ip_address = Column(String, nullable=True)
+    integration_status = Column(String, default='not_integrated')  # not_integrated, integrated, offline
+    last_heartbeat_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     
     tasks = relationship("Task", secondary=gate_task, back_populates="gates")

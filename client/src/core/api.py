@@ -50,3 +50,21 @@ class SentinelAPI:
         except Exception as e:
             print(f"API Error (scan_session): {e}")
             return None
+
+    def send_heartbeat(self, device_id: str) -> dict:
+        """Send heartbeat to Python server (which proxies to Laravel)."""
+        if not device_id:
+            return {"success": False, "error": "DEVICE_ID not configured"}
+        try:
+            resp = requests.post(
+                f"{self.server_url}/api/heartbeat",
+                json={"device_id": device_id},
+                timeout=5
+            )
+            if resp.status_code == 200:
+                return {"success": True, "data": resp.json()}
+            elif resp.status_code == 404:
+                return {"success": False, "error": f"Gate not found for device_id: {device_id}"}
+            return {"success": False, "error": f"Server returned {resp.status_code}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}

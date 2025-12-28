@@ -7,11 +7,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Constants
-SERVER_URL = os.getenv("SERVER_URL", "http://127.0.0.1:8000")
+SERVER_URL = os.getenv("SERVER_URL", "http://127.0.0.1:8001")
 API_SECRET = os.getenv("API_SECRET", "dev-secret")
-DEVICE_ID = os.getenv("DEVICE_ID", "dev-1")
+DEVICE_ID = os.getenv("DEVICE_ID", "")  # Unique ID for this device, also used as door_id
 CAPTURE_INTERVAL = int(os.getenv("CAPTURE_INTERVAL", "5"))
 CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", "0"))
+HEARTBEAT_INTERVAL = int(os.getenv("HEARTBEAT_INTERVAL", "60"))  # Seconds between heartbeats
 MODEL_NAME = os.getenv("MODEL_NAME", "buffalo_l")
 DET_SIZE = int(os.getenv("DET_SIZE", "320"))
 
