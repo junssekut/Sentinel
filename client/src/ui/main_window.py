@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from ..utils.helpers import (
-    COLORS, ASSETS_DIR, CAMERA_INDEX, CAPTURE_INTERVAL, 
+    COLORS, ASSETS_DIR, CAMERA_INDEX, CAPTURE_INTERVAL, CAPTURE_INTERVAL_MS,
     DEVICE_ID, HEARTBEAT_INTERVAL,
     get_font, check_fonts
 )
@@ -67,6 +67,11 @@ class FaceClientApp:
         self.current_step = 1  # 1 = waiting vendor, 2 = waiting PIC, 3 = completed
         self.last_wrong_pic_time = 0  # Track when wrong PIC was shown
         self.wrong_pic_cooldown = 3  # Seconds to suppress repeated wrong PIC errors
+        
+        # Face detection state for bounding box
+        self.current_face_bbox = None  # [x1, y1, x2, y2] or None
+        self.face_recognized = False  # True if last scan was recognized
+        self.face_status_text = ""  # Text to show on face box
         
         # Build UI
         self._build_ui()
@@ -387,6 +392,31 @@ class FaceClientApp:
         if ret:
             self.last_frame = frame
             mirrored = cv2.flip(frame, 1)
+            
+            # Draw bounding box if face detected
+            if self.current_face_bbox:
+                x1, y1, x2, y2 = self.current_face_bbox
+                # Mirror the x coordinates for display
+                h, w = mirrored.shape[:2]
+                x1_m, x2_m = w - x2, w - x1
+                
+                # Color based on recognition status
+                if self.face_recognized:
+                    color = (0, 255, 0)  # Green for recognized
+                    label = self.face_status_text or "Recognized"
+                else:
+                    color = (0, 255, 255)  # Yellow for unrecognized
+                    label = self.face_status_text or "Scanning..."
+                
+                # Draw rectangle
+                cv2.rectangle(mirrored, (x1_m, y1), (x2_m, y2), color, 2)
+                
+                # Draw label background
+                label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                cv2.rectangle(mirrored, (x1_m, y1 - 25), (x1_m + label_size[0] + 10, y1), color, -1)
+                cv2.putText(mirrored, label, (x1_m + 5, y1 - 7), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+            
             rgb = cv2.cvtColor(mirrored, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(rgb)
             
@@ -415,15 +445,31 @@ class FaceClientApp:
         if not self.running: return
         if self.verify_running:
             threading.Thread(target=self.verify_once, daemon=True).start()
-        self.root.after(CAPTURE_INTERVAL * 1000, self._schedule_verify)
+        
+        # Determine delay in milliseconds
+        delay_ms = CAPTURE_INTERVAL_MS if CAPTURE_INTERVAL_MS > 0 else CAPTURE_INTERVAL * 1000
+        self.root.after(delay_ms, self._schedule_verify)
 
     def verify_once(self):
         frame = self.last_frame
         if frame is None or not self.detector.ready: return
         if not self.session_id: return self._start_session()
-            
-        embedding = self.detector.extract_embedding(frame)
-        if embedding is None: return
+        
+        # Use new method to get bbox along with embedding
+        embedding, bbox = self.detector.extract_embedding_with_bbox(frame)
+        
+        if bbox:
+            self.current_face_bbox = bbox
+        else:
+            self.current_face_bbox = None
+            self.face_recognized = False
+            self.face_status_text = ""
+            return
+        
+        if embedding is None:
+            self.face_status_text = "Processing..."
+            self.face_recognized = False
+            return
             
         payload = {"session_id": self.session_id, "embedding": embedding.tolist()}
         resp = self.api.scan_session(payload)
@@ -438,9 +484,31 @@ class FaceClientApp:
             self._update_status("Session Expired\nRestarting...", "warning")
             return
         
-        if resp.status_code != 200: return
+        if resp.status_code != 200: 
+            # Face detected but API error - show as unrecognized
+            self.face_recognized = False
+            self.face_status_text = "Verifying..."
+            return
         data = resp.json()
         state, message, vendors = data.get("state"), data.get("message", ""), data.get("vendors", [])
+        
+        # Check if face was recognized based on response
+        if "not recognized" in message.lower() or "not found" in message.lower():
+            self.face_recognized = False
+            self.face_status_text = "Unrecognized"
+        else:
+            self.face_recognized = True
+            # Extract name from message if possible
+            if vendors:
+                self.face_status_text = f"Vendor: {vendors[-1]}"
+            elif "PIC" in message or "approved" in state:
+                pic_info = data.get("pic", {})
+                if pic_info and pic_info.get("name"):
+                    self.face_status_text = f"PIC: {pic_info.get('name')}"
+                else:
+                    self.face_status_text = "Recognized"
+            else:
+                self.face_status_text = "Recognized"
         
         if vendors:
             self.detected_vendors = vendors
@@ -451,6 +519,13 @@ class FaceClientApp:
         if state == "approved":
             # Stop verification to show result
             self.verify_running = False
+            self.face_recognized = True
+            # Show PIC name on bounding box
+            pic_info = data.get("pic", {})
+            if pic_info and pic_info.get("name"):
+                self.face_status_text = f"PIC: {pic_info.get('name')}"
+            else:
+                self.face_status_text = "PIC Approved"
             
             self._update_status("✅ ACCESS GRANTED", "success")
             self.root.after(0, lambda: self._update_step(3))
@@ -462,6 +537,9 @@ class FaceClientApp:
                 self.detected_vendors = []
                 self.session_id = None
                 self.session_expires_at = None
+                self.current_face_bbox = None
+                self.face_recognized = False
+                self.face_status_text = ""
                 self.root.after(0, self._update_vendors_list)
                 self.verify_running = True
                 self._start_session()
@@ -473,6 +551,8 @@ class FaceClientApp:
             # Check if this is an error (wrong PIC scanned)
             if "No task" in message or "not assigned" in message:
                 # Wrong PIC detected - show error but KEEP scanning for correct PIC
+                self.face_recognized = False
+                self.face_status_text = "Wrong PIC"
                 # Use cooldown to prevent spamming same error
                 current_time = time.time()
                 if current_time - self.last_wrong_pic_time > self.wrong_pic_cooldown:
@@ -503,6 +583,8 @@ class FaceClientApp:
             if "DENIED" in message.upper():
                 # Stop verification briefly to show denied message
                 self.verify_running = False
+                self.face_recognized = False
+                self.face_status_text = "DENIED"
                 self._update_status("❌ ACCESS DENIED", "error")
                 self.hint_var.set(f"⚠️ {message}")
                 
@@ -510,6 +592,8 @@ class FaceClientApp:
                 def _resume_verify():
                     self.verify_running = True
                     self.last_wrong_pic_time = 0
+                    self.current_face_bbox = None
+                    self.face_status_text = ""
                     self._start_session()
                 
                 self.root.after(5000, _resume_verify)

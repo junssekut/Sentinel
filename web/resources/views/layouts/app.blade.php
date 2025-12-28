@@ -75,6 +75,8 @@
                 </div>
             @endisset
         </div>
+
+        @stack('scripts')
     </body>
 </html>
 

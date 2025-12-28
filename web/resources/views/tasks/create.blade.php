@@ -18,18 +18,39 @@
             <form method="POST" action="{{ route('tasks.store') }}" class="p-8 space-y-6">
                 @csrf
 
-                <!-- Vendor Selection -->
+                <!-- Task Title -->
                 <div class="group">
-                    <label for="vendor_id" class="block text-sm font-bold text-navy-900 mb-2 ml-1">Vendor *</label>
-                    <select id="vendor_id" name="vendor_id" required
+                    <label for="title" class="block text-sm font-bold text-navy-900 mb-2 ml-1">Task Title *</label>
+                    <input type="text" id="title" name="title" required
+                        value="{{ old('title') }}"
+                        placeholder="e.g., Monthly Equipment Maintenance"
                         class="w-full rounded-xl border-gray-200 focus:ring-sentinel-blue focus:border-sentinel-blue bg-slate-50 hover:bg-white transition-all duration-200 py-3 px-4 font-medium">
-                        <option value="">Select a vendor</option>
-                        @foreach($vendors as $vendor)
-                        <option value="{{ $vendor->id }}" {{ old('vendor_id') == $vendor->id ? 'selected' : '' }}>
-                            {{ $vendor->name }} ({{ $vendor->email }})
-                        </option>
-                        @endforeach
-                    </select>
+                </div>
+
+                <!-- Vendors Selection (Addable List) -->
+                <div class="group">
+                    <label class="block text-sm font-bold text-navy-900 mb-2 ml-1">Vendors *</label>
+                    
+                    <!-- Vendor Selector -->
+                    <div class="flex gap-3 mb-4">
+                        <select id="vendor-select" class="flex-1 rounded-xl border-gray-200 focus:ring-sentinel-blue focus:border-sentinel-blue bg-slate-50 hover:bg-white transition-all duration-200 py-3 px-4 font-medium">
+                            <option value="">Select a vendor to add</option>
+                            @foreach($vendors as $vendor)
+                            <option value="{{ $vendor->id }}" data-name="{{ $vendor->name }}" data-email="{{ $vendor->email }}">
+                                {{ $vendor->name }} ({{ $vendor->email }})
+                            </option>
+                            @endforeach
+                        </select>
+                        <button type="button" id="add-vendor-btn" class="px-5 py-3 bg-sentinel-blue text-white font-bold rounded-xl hover:bg-sentinel-blue/90 transition-all duration-200 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                            Add
+                        </button>
+                    </div>
+
+                    <!-- Added Vendors List -->
+                    <div id="vendors-list" class="flex flex-wrap gap-2 min-h-[48px] p-4 bg-slate-50 rounded-xl border border-gray-200">
+                        <p id="no-vendors-msg" class="text-slate-400 text-sm">No vendors added yet. Select vendors from above.</p>
+                    </div>
                 </div>
 
                 <!-- PIC Selection -->
@@ -83,14 +104,6 @@
                     @endif
                 </div>
 
-                <!-- Notes -->
-                <div class="group">
-                    <label for="notes" class="block text-sm font-bold text-navy-900 mb-2 ml-1">Notes (Optional)</label>
-                    <textarea id="notes" name="notes" rows="4"
-                        class="w-full rounded-xl border-gray-200 focus:ring-sentinel-blue focus:border-sentinel-blue bg-slate-50 hover:bg-white transition-all duration-200 py-3 px-4 font-medium resize-none"
-                        placeholder="Add any additional notes about this task...">{{ old('notes') }}</textarea>
-                </div>
-
                 <!-- Submit -->
                 <div class="flex justify-end gap-3 pt-6 border-t border-gray-200">
                     <a href="{{ route('tasks.index') }}" class="px-6 py-2.5 text-slate-600 hover:text-navy-900 font-bold hover:bg-slate-100 rounded-xl transition-all duration-200">
@@ -103,4 +116,76 @@
             </form>
         </div>
     </div>
+
+    @push('scripts')
+    <script>
+    (function() {
+        const vendorSelect = document.getElementById('vendor-select');
+        const addBtn = document.getElementById('add-vendor-btn');
+        const vendorsList = document.getElementById('vendors-list');
+        const noVendorsMsg = document.getElementById('no-vendors-msg');
+        const addedVendors = new Set();
+
+        function updateNoVendorsMessage() {
+            noVendorsMsg.style.display = addedVendors.size === 0 ? 'block' : 'none';
+        }
+
+        function createVendorChip(id, name, email) {
+            const chip = document.createElement('div');
+            chip.className = 'flex items-center gap-2 px-4 py-2 bg-sentinel-blue/10 text-sentinel-blue rounded-lg font-medium text-sm animate-fadeIn';
+            chip.dataset.vendorId = id;
+            chip.innerHTML = `
+                <input type="hidden" name="vendor_ids[]" value="${id}">
+                <span>${name}</span>
+                <button type="button" class="remove-vendor-btn hover:bg-sentinel-blue/20 rounded-full p-0.5 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            `;
+            return chip;
+        }
+
+        addBtn.addEventListener('click', function() {
+            const selected = vendorSelect.options[vendorSelect.selectedIndex];
+            if (!selected.value) return;
+
+            const id = selected.value;
+            const name = selected.dataset.name;
+            const email = selected.dataset.email;
+
+            if (addedVendors.has(id)) {
+                // Already added
+                return;
+            }
+
+            addedVendors.add(id);
+            vendorsList.appendChild(createVendorChip(id, name, email));
+            
+            // Disable option in dropdown
+            selected.disabled = true;
+            vendorSelect.value = '';
+            
+            updateNoVendorsMessage();
+        });
+
+        vendorsList.addEventListener('click', function(e) {
+            const removeBtn = e.target.closest('.remove-vendor-btn');
+            if (!removeBtn) return;
+
+            const chip = removeBtn.closest('[data-vendor-id]');
+            const id = chip.dataset.vendorId;
+
+            addedVendors.delete(id);
+            chip.remove();
+
+            // Re-enable option in dropdown
+            const option = vendorSelect.querySelector(`option[value="${id}"]`);
+            if (option) option.disabled = false;
+
+            updateNoVendorsMessage();
+        });
+    })();
+    </script>
+    @endpush
 </x-app-layout>

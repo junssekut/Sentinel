@@ -1,5 +1,5 @@
 import requests
-from ..utils.helpers import SERVER_URL
+from ..utils.helpers import SERVER_URL, DEVICE_ID
 
 class SentinelAPI:
     def __init__(self, server_url=SERVER_URL):
@@ -8,7 +8,11 @@ class SentinelAPI:
     def start_session(self):
         """Start a new verification session."""
         try:
-            resp = requests.post(f"{self.server_url}/api/session/start", json={}, timeout=5)
+            resp = requests.post(
+                f"{self.server_url}/api/session/start", 
+                json={"gate_id": DEVICE_ID}, 
+                timeout=5
+            )
             if resp.status_code == 200:
                 return {"success": True, "data": resp.json()}
             return {"success": False, "error": f"Server returned {resp.status_code}"}

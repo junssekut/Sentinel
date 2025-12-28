@@ -10,7 +10,8 @@ load_dotenv()
 SERVER_URL = os.getenv("SERVER_URL", "http://127.0.0.1:8001")
 API_SECRET = os.getenv("API_SECRET", "dev-secret")
 DEVICE_ID = os.getenv("DEVICE_ID", "")  # Unique ID for this device, also used as door_id
-CAPTURE_INTERVAL = int(os.getenv("CAPTURE_INTERVAL", "5"))
+CAPTURE_INTERVAL = int(os.getenv("CAPTURE_INTERVAL", "5"))  # Seconds (legacy)
+CAPTURE_INTERVAL_MS = int(os.getenv("CAPTURE_INTERVAL_MS", "0"))  # Milliseconds (takes priority if > 0)
 CAMERA_INDEX = int(os.getenv("CAMERA_INDEX", "0"))
 HEARTBEAT_INTERVAL = int(os.getenv("HEARTBEAT_INTERVAL", "60"))  # Seconds between heartbeats
 MODEL_NAME = os.getenv("MODEL_NAME", "buffalo_l")
