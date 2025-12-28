@@ -34,9 +34,9 @@
                     <!-- Vendor Selector -->
                     <div class="flex gap-3 mb-4">
                         <select id="vendor-select" class="flex-1 rounded-xl border-gray-200 focus:ring-sentinel-blue focus:border-sentinel-blue bg-slate-50 hover:bg-white transition-all duration-200 py-3 px-4 font-medium">
-                            <option value="">Select a vendor to add</option>
+                            <option value="" data-name="" data-email="" data-face="">Select a vendor to add</option>
                             @foreach($vendors as $vendor)
-                            <option value="{{ $vendor->id }}" data-name="{{ $vendor->name }}" data-email="{{ $vendor->email }}">
+                            <option value="{{ $vendor->id }}" data-name="{{ $vendor->name }}" data-email="{{ $vendor->email }}" data-face="{{ $vendor->face_image }}">
                                 {{ $vendor->name }} ({{ $vendor->email }})
                             </option>
                             @endforeach
@@ -48,8 +48,8 @@
                     </div>
 
                     <!-- Added Vendors List -->
-                    <div id="vendors-list" class="flex flex-wrap gap-2 min-h-[48px] p-4 bg-slate-50 rounded-xl border border-gray-200">
-                        <p id="no-vendors-msg" class="text-slate-400 text-sm">No vendors added yet. Select vendors from above.</p>
+                    <div id="vendors-list" class="grid grid-cols-1 md:grid-cols-2 gap-3 min-h-[60px]">
+                        <p id="no-vendors-msg" class="text-slate-400 text-sm col-span-full p-4 bg-slate-50 rounded-xl border border-gray-200 border-dashed">No vendors added yet. Select vendors from above.</p>
                     </div>
                 </div>
 
@@ -130,20 +130,37 @@
             noVendorsMsg.style.display = addedVendors.size === 0 ? 'block' : 'none';
         }
 
-        function createVendorChip(id, name, email) {
-            const chip = document.createElement('div');
-            chip.className = 'flex items-center gap-2 px-4 py-2 bg-sentinel-blue/10 text-sentinel-blue rounded-lg font-medium text-sm animate-fadeIn';
-            chip.dataset.vendorId = id;
-            chip.innerHTML = `
+        function createVendorCard(id, name, email, faceImage) {
+            // Get initials for avatar fallback
+            const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            
+            // Determine avatar content - use image if available, otherwise initials
+            let avatarContent;
+            if (faceImage) {
+                // Check if it already has data URI prefix
+                const imgSrc = faceImage.startsWith('data:') ? faceImage : `data:image/jpeg;base64,${faceImage}`;
+                avatarContent = `<img src="${imgSrc}" alt="${name}" class="w-12 h-12 rounded-full object-cover flex-shrink-0">`;
+            } else {
+                avatarContent = `<div class="w-12 h-12 rounded-full bg-sentinel-blue/10 flex items-center justify-center text-sentinel-blue font-bold text-lg flex-shrink-0">${initials}</div>`;
+            }
+            
+            const card = document.createElement('div');
+            card.className = 'flex items-center gap-3 p-4 bg-white rounded-xl border-2 border-sentinel-blue/30 shadow-sm hover:shadow-md transition-all duration-200';
+            card.dataset.vendorId = id;
+            card.innerHTML = `
                 <input type="hidden" name="vendor_ids[]" value="${id}">
-                <span>${name}</span>
-                <button type="button" class="remove-vendor-btn hover:bg-sentinel-blue/20 rounded-full p-0.5 transition-colors">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                ${avatarContent}
+                <div class="flex-1 min-w-0">
+                    <p class="font-bold text-navy-900 truncate">${name}</p>
+                    <p class="text-sm text-slate-500 truncate">${email}</p>
+                </div>
+                <button type="button" class="remove-vendor-btn p-2 hover:bg-error/10 rounded-lg transition-colors text-slate-400 hover:text-error flex-shrink-0" title="Remove vendor">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
             `;
-            return chip;
+            return card;
         }
 
         addBtn.addEventListener('click', function() {
@@ -153,6 +170,7 @@
             const id = selected.value;
             const name = selected.dataset.name;
             const email = selected.dataset.email;
+            const faceImage = selected.dataset.face;
 
             if (addedVendors.has(id)) {
                 // Already added
@@ -160,7 +178,7 @@
             }
 
             addedVendors.add(id);
-            vendorsList.appendChild(createVendorChip(id, name, email));
+            vendorsList.appendChild(createVendorCard(id, name, email, faceImage));
             
             // Disable option in dropdown
             selected.disabled = true;
