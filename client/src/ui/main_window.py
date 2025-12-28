@@ -197,7 +197,7 @@ class FaceClientApp:
         instr_inner = tk.Frame(self.instructions_card.container, bg=COLORS["bg_card"])
         instr_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=12)
         
-        tk.Label(instr_inner, text="📋 Instructions", font=get_font(13, "bold"),
+        tk.Label(instr_inner, text="Instructions", font=get_font(13, "bold"),
                  fg=COLORS["text_primary"], bg=COLORS["bg_card"]).pack(anchor="w", pady=(0, 10))
         
         # Step indicators
@@ -261,7 +261,7 @@ class FaceClientApp:
         vendors_inner = tk.Frame(self.vendors_card.container, bg=COLORS["bg_card"])
         vendors_inner.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
         
-        tk.Label(vendors_inner, text="👥 Vendors Detected", font=get_font(11, "bold"),
+        tk.Label(vendors_inner, text="Vendors Detected", font=get_font(11, "bold"),
                  fg=COLORS["text_secondary"], bg=COLORS["bg_card"]).pack(anchor="w")
         
         self.vendors_list_var = tk.StringVar(value="None yet")
@@ -312,7 +312,7 @@ class FaceClientApp:
         for i, (frame, indicator, label) in enumerate(self.step_frames, 1):
             if i < step:
                 # Completed
-                indicator.configure(text="✓", fg=COLORS["success"])
+                indicator.configure(text="[OK]", fg=COLORS["success"])
                 label.configure(fg=COLORS["success"])
             elif i == step:
                 # Current
@@ -334,7 +334,7 @@ class FaceClientApp:
             self.root.after(0, self._update_session_info)
             self.root.after(0, self._update_vendors_list)
             self._update_status("Ready\nScan Vendor Face", "info")
-            self.hint_var.set("💡 Look at the camera to scan your face")
+            self.hint_var.set("* Look at the camera to scan your face")
         else:
             error_msg = result.get("error", "Unknown error")
             if len(error_msg) > 60:
@@ -346,7 +346,7 @@ class FaceClientApp:
         if self.session_id and self.session_expires_at:
             remaining = int(self.session_expires_at - time.time())
             if remaining > 0:
-                self.session_info_var.set(f"⏱ Session: {self.session_id[:8]}... • {remaining}s")
+                self.session_info_var.set(f"Session: {self.session_id[:8]}... | {remaining}s")
             else:
                 self.session_info_var.set("Session expired • Restarting...")
                 self.session_id = None
@@ -452,10 +452,10 @@ class FaceClientApp:
             # Stop verification to show result
             self.verify_running = False
             
-            self._update_status("✅ ACCESS GRANTED", "success")
+            self._update_status("[OK] ACCESS GRANTED", "success")
             self.root.after(0, lambda: self._update_step(3))
-            self.hint_var.set("🚪 Door unlocking... Please enter")
-            self.session_info_var.set("✓ Session approved!")
+            self.hint_var.set("Door unlocking... Please enter")
+            self.session_info_var.set("[OK] Session approved!")
             
             # Clear session after a delay to show the result
             def _clear_and_restart():
@@ -478,8 +478,8 @@ class FaceClientApp:
                 if current_time - self.last_wrong_pic_time > self.wrong_pic_cooldown:
                     # Show error with cooldown
                     self.last_wrong_pic_time = current_time
-                    self._update_status("❌ Wrong PIC", "error")
-                    self.hint_var.set(f"⚠️ {message}")
+                    self._update_status("[X] Wrong PIC", "error")
+                    self.hint_var.set(f"! {message}")
                 # Don't stop verification - keep scanning for correct PIC!
                 # Just update step indicator
                 self.root.after(0, lambda: self._update_step(2))
@@ -488,23 +488,23 @@ class FaceClientApp:
                 self.last_wrong_pic_time = 0  # Reset cooldown
                 self._update_status("Vendors OK\nNow Scan PIC", "warning")
                 self.root.after(0, lambda: self._update_step(2))
-                self.hint_var.set("💡 PIC: Please scan your face to approve")
+                self.hint_var.set("* PIC: Please scan your face to approve")
         elif state == "waiting_vendors":
             self.last_wrong_pic_time = 0  # Reset cooldown
             vendor_count = len(vendors)
             if vendor_count > 0:
                 self._update_status(f"{vendor_count} Vendor(s) Scanned\nAdd more or scan PIC", "info")
-                self.hint_var.set("💡 Scan another vendor or scan PIC to proceed")
+                self.hint_var.set("* Scan another vendor or scan PIC to proceed")
             else:
                 self._update_status("Ready\nScan Vendor Face", "info")
-                self.hint_var.set("💡 Look at the camera to scan your face")
+                self.hint_var.set("* Look at the camera to scan your face")
         else:
             # Handle denied or other messages
             if "DENIED" in message.upper():
                 # Stop verification briefly to show denied message
                 self.verify_running = False
-                self._update_status("❌ ACCESS DENIED", "error")
-                self.hint_var.set(f"⚠️ {message}")
+                self._update_status("[X] ACCESS DENIED", "error")
+                self.hint_var.set(f"! {message}")
                 
                 # Resume after 5 seconds with new session
                 def _resume_verify():
