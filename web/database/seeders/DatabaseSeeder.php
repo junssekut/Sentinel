@@ -16,7 +16,14 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create DCFM (Admin)
+        $this->call([
+            UserSeeder::class,
+            GateSeeder::class,
+            TaskSeeder::class,
+        ]);
+
+        // Create DCFM (Admin) - COMMENTED OUT as we use UserSeeder
+        /*
         $dcfm = User::create([
             'name' => 'John Admin',
             'email' => 'admin@sentinel.com',
@@ -125,5 +132,27 @@ class DatabaseSeeder extends Seeder
         $this->command->info('  DCFM: admin@sentinel.com / password');
         $this->command->info('  SOC:  soc@sentinel.com / password');
         $this->command->info('  Vendor: vendor1@example.com / password');
+        // ... existing code ...
+        */
+        
+        // We can keep gate/task seeding if needed, but user didn't ask for it to be removed?
+        // "other users, delete them" -> implies cleanup of users. 
+        // If we want to keep Gates/Tasks we need valid user IDs. 
+        // The UserSeeder restores users. 
+        // Ideally we should probably keep the Gate seeding enabled if the user wants a functional app, 
+        // but for now let's focus on the user request: "get what is inside... use the data user... other users delete them"
+        // The prompt implies a full reset of users.
+        // I will comment out the user creation parts. I will also comment out the Task creation since it depends on variables like $dcfm, $soc which are now commented out.
+        // I will leave Gate creation if it doesn't depend on users.
+        
+        // Let's actually check if we can reconstruct the variables to keep downstream seeding working if desirable?
+        // But the user didn't explicitely ask to keep tasks/gates.
+        // To be safe and strict to "seeding" request, I will comment out the old User creation and the Task creation that depends on it.
+        // Gates are independent typically.
+        
+        // RE-READING: "can you get what is inside website database currently ... for next seeding ... other users delete them"
+        // It sounds like a migration of users. 
+        // Let's simply comment out the whole old run() body that created users/tasks.
+        
     }
 }
