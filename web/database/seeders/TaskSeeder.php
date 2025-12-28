@@ -51,8 +51,8 @@ class TaskSeeder extends Seeder
             $task2 = Task::create([
                 'title' => 'Joint Inspection',
                 'pic_id' => $picFelix->id,
-                'start_time' => Carbon::tomorrow()->setHour(9),
-                'end_time' => Carbon::tomorrow()->setHour(17),
+                'start_time' => Carbon::now()->subHour(),
+                'end_time' => Carbon::now()->addHours(18),
                 'status' => 'active',
                 'created_by' => $picFelix->id,
             ]);
@@ -66,8 +66,8 @@ class TaskSeeder extends Seeder
             $task3 = Task::create([
                 'title' => 'Network Upgrade',
                 'pic_id' => $picMatthew->id,
-                'start_time' => Carbon::now()->addDays(2)->setHour(10),
-                'end_time' => Carbon::now()->addDays(2)->setHour(14),
+                'start_time' => Carbon::now()->subHour(),
+                'end_time' => Carbon::now()->addHours(36),
                 'status' => 'active',
                 'created_by' => $picMatthew->id,
             ]);

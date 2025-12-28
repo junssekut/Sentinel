@@ -83,10 +83,10 @@
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-4">
                                 <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold border-2 border-white shadow-sm group-hover:scale-110 transition-transform">
-                                    {{ substr($task->vendor->name, 0, 1) }}
+                                    {{ $task->vendors->isNotEmpty() ? substr($task->vendors->first()->name, 0, 1) : '?' }}
                                 </div>
                                 <div>
-                                    <p class="font-bold text-navy-900">{{ $task->vendor->name }}</p>
+                                    <p class="font-bold text-navy-900">{{ $task->vendors->isNotEmpty() ? $task->vendors->pluck('name')->join(', ') : 'No vendors' }}</p>
                                     <p class="text-sm text-slate-500 font-medium">PIC: {{ $task->pic->name }}</p>
                                 </div>
                             </div>

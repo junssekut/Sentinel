@@ -200,9 +200,9 @@ def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_addr
         log_access(db, vendor, pic, gate, None, False, "Gate is inactive", ip_address)
         return {"approved": False, "reason": "Gate is inactive"}
 
-    # Step 7: Find Active Task
+    # Step 7: Find Active Task where vendor is assigned and PIC matches
     task = db.query(models.Task).filter(
-        models.Task.vendor_id == vendor.id,
+        models.Task.vendors.any(id=vendor.id),  # Check if vendor is in the vendors list
         models.Task.pic_id == pic.id,
         models.Task.status == 'active'
     ).first()
@@ -210,6 +210,7 @@ def validate_access(db: Session, request: schemas.AccessValidateRequest, ip_addr
     if not task:
         log_access(db, vendor, pic, gate, None, False, "No active task found", ip_address)
         return {"approved": False, "reason": "No active task found for this vendor-PIC pair"}
+
 
     # Step 8: Verify Time Window
     now = datetime.now()

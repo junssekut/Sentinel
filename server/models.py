@@ -9,6 +9,12 @@ gate_task = Table('gate_task', Base.metadata,
     Column('task_id', Integer, ForeignKey('tasks.id'))
 )
 
+# Association Table for Task-Vendor Many-to-Many
+task_vendor = Table('task_vendor', Base.metadata,
+    Column('task_id', Integer, ForeignKey('tasks.id')),
+    Column('vendor_id', Integer, ForeignKey('users.id'))
+)
+
 class User(Base):
     __tablename__ = "users"
 
@@ -47,14 +53,14 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
-    vendor_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String)  # Renamed from notes
     pic_id = Column(Integer, ForeignKey("users.id"))
     start_time = Column(DateTime)
     end_time = Column(DateTime)
     status = Column(String) # active, completed, revoked
 
-    vendor = relationship("User", foreign_keys=[vendor_id])
     pic = relationship("User", foreign_keys=[pic_id])
+    vendors = relationship("User", secondary=task_vendor)  # Many-to-many
     gates = relationship("Gate", secondary=gate_task, back_populates="tasks")
 
     def is_active(self):

@@ -74,7 +74,7 @@ class AccessValidationService
 
         // Step 7: Find active task with vendor and PIC assigned together
         $this->task = Task::active()
-            ->where('vendor_id', $this->vendor->id)
+            ->forVendor($this->vendor->id)
             ->where('pic_id', $this->pic->id)
             ->first();
 

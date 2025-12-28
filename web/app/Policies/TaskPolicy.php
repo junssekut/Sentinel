@@ -27,7 +27,7 @@ class TaskPolicy
         }
 
         // Vendors can only view their own tasks
-        return $user->isVendor() && $task->vendor_id === $user->id;
+        return $user->isVendor() && $task->vendors->contains('id', $user->id);
     }
 
     /**

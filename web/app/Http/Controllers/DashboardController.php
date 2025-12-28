@@ -43,8 +43,8 @@ class DashboardController extends Controller
         $stats = [];
 
         if ($user->isVendor()) {
-            $stats['active_tasks'] = Task::active()->where('vendor_id', $user->id)->count();
-            $stats['completed_tasks'] = Task::completed()->where('vendor_id', $user->id)->count();
+            $stats['active_tasks'] = Task::active()->forVendor($user->id)->count();
+            $stats['completed_tasks'] = Task::completed()->forVendor($user->id)->count();
         } else {
             // DCFM and SOC see all stats
             $stats['active_tasks'] = Task::active()->count();
@@ -67,10 +67,10 @@ class DashboardController extends Controller
      */
     private function getRecentTasksForUser(User $user)
     {
-        $query = Task::with(['vendor', 'pic', 'gates']);
+        $query = Task::with(['vendors', 'pic', 'gates']);
 
         if ($user->isVendor()) {
-            $query->where('vendor_id', $user->id);
+            $query->forVendor($user->id);
         }
 
         return $query->latest()->take(5)->get();

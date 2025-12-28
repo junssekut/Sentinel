@@ -64,7 +64,7 @@ class GateController extends Controller
         $this->authorize('view', $gate);
 
         $gate->load(['tasks' => function ($query) {
-            $query->with(['vendor', 'pic'])->latest()->take(10);
+            $query->with(['vendors', 'pic'])->latest()->take(10);
         }]);
 
         return view('gates.show', compact('gate'));

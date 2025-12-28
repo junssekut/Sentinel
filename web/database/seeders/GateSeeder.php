@@ -18,6 +18,8 @@ class GateSeeder extends Seeder
                 'name' => 'Main Entrance',
                 'location' => 'Lobby',
                 'description' => 'Primary entry point',
+                'door_id' => 'DOOR-001',
+                'door_ip_address' => '192.168.1.102',
                 'is_active' => true,
             ]
         );
@@ -28,6 +30,8 @@ class GateSeeder extends Seeder
                 'name' => 'Back Entrance',
                 'location' => 'Parking Lot',
                 'description' => 'Staff entry point',
+                'door_id' => 'DOOR-002',
+                'door_ip_address' => '192.168.1.103',
                 'is_active' => true,
             ]
         );

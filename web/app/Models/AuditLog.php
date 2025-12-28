@@ -102,7 +102,7 @@ class AuditLog extends Model
             'entity_id' => $task->id,
             'user_id' => $userId,
             'details' => [
-                'vendor_id' => $task->vendor_id,
+                'vendor_ids' => $task->vendors->pluck('id')->toArray(),
                 'pic_id' => $task->pic_id,
                 'start_time' => $task->start_time->toIso8601String(),
                 'end_time' => $task->end_time->toIso8601String(),
@@ -123,7 +123,7 @@ class AuditLog extends Model
             'entity_id' => $task->id,
             'user_id' => $userId,
             'details' => [
-                'vendor_id' => $task->vendor_id,
+                'vendor_ids' => $task->vendors->pluck('id')->toArray(),
                 'pic_id' => $task->pic_id,
             ],
             'ip_address' => $ipAddress,

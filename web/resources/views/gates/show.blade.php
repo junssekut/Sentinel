@@ -153,7 +153,7 @@
                         <a href="{{ route('tasks.show', $task) }}" class="block px-6 py-4 hover:bg-light-100/50 transition-colors">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="font-medium text-navy">{{ $task->vendor->name }}</p>
+                                    <p class="font-medium text-navy">{{ $task->vendors->isNotEmpty() ? $task->vendors->pluck('name')->join(', ') : 'No vendors' }}</p>
                                     <p class="text-sm text-slate">PIC: {{ $task->pic->name }}</p>
                                 </div>
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium @if($task->status === 'active') bg-success/10 text-success @elseif($task->status === 'completed') bg-slate/10 text-slate @else bg-error/10 text-error @endif">{{ ucfirst($task->status) }}</span>
