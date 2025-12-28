@@ -49,11 +49,17 @@
                     <div class="flex items-start justify-between mb-4">
                         <div class="flex items-center gap-3">
                             <div class="w-12 h-12 rounded-xl bg-sentinel-blue/10 flex items-center justify-center text-sentinel-blue font-display font-bold text-lg shadow-sm">
-                                {{ substr($task->vendor->name, 0, 1) }}
+                                {{ substr($task->title ?? 'T', 0, 1) }}
                             </div>
                             <div>
-                                <h3 class="font-display font-bold text-navy-900">{{ $task->vendor->name }}</h3>
-                                <p class="text-sm text-slate-500">{{ $task->vendor->email }}</p>
+                                <h3 class="font-display font-bold text-navy-900">{{ $task->title ?? 'Untitled Task' }}</h3>
+                                <p class="text-sm text-slate-500">
+                                    @if($task->vendors->isNotEmpty())
+                                        {{ $task->vendors->pluck('name')->join(', ') }}
+                                    @else
+                                        No vendors assigned
+                                    @endif
+                                </p>
                             </div>
                         </div>
                     </div>

@@ -53,13 +53,14 @@ class TaskController extends Controller
         $this->authorize('create', Task::class);
 
         $validated = $request->validate([
-            'vendor_id' => 'required|exists:users,id',
+            'vendor_ids' => 'required|array|min:1',
+            'vendor_ids.*' => 'exists:users,id',
             'pic_id' => 'required|exists:users,id',
             'start_time' => 'required|date',
             'end_time' => 'required|date|after:start_time',
             'gate_ids' => 'required|array|min:1',
             'gate_ids.*' => 'exists:gates,id',
-            'notes' => 'nullable|string|max:1000',
+            'title' => 'required|string|max:255',
         ]);
 
         $result = $this->taskService->createTask($validated, $request->user());
@@ -79,7 +80,7 @@ class TaskController extends Controller
     {
         $this->authorize('view', $task);
 
-        $task->load(['vendor', 'pic', 'gates', 'creator']);
+        $task->load(['vendors', 'pic', 'gates', 'creator']);
 
         return view('tasks.show', compact('task'));
     }

@@ -20,25 +20,17 @@ class TaskService
      */
     public function createTask(array $data, User $creator): array
     {
-        // Validate vendor
-        $vendor = User::find($data['vendor_id']);
-        if (!$vendor || !$vendor->isVendor()) {
-            return ['success' => false, 'error' => 'Invalid vendor specified'];
+        // Validate vendors
+        $vendorIds = $data['vendor_ids'];
+        $vendors = User::whereIn('id', $vendorIds)->where('role', 'vendor')->get();
+        if ($vendors->count() !== count($vendorIds)) {
+            return ['success' => false, 'error' => 'One or more invalid vendors specified'];
         }
 
         // Validate PIC (must not be a vendor)
         $pic = User::find($data['pic_id']);
         if (!$pic || $pic->isVendor()) {
             return ['success' => false, 'error' => 'Invalid PIC specified'];
-        }
-
-        // Check for existing active task for this vendor
-        $existingTask = Task::active()
-            ->where('vendor_id', $data['vendor_id'])
-            ->first();
-
-        if ($existingTask) {
-            return ['success' => false, 'error' => 'Vendor already has an active task'];
         }
 
         // Validate time window
@@ -65,14 +57,16 @@ class TaskService
 
             // Create the task
             $task = Task::create([
-                'vendor_id' => $data['vendor_id'],
+                'title' => $data['title'],
                 'pic_id' => $data['pic_id'],
                 'start_time' => $startTime,
                 'end_time' => $endTime,
                 'status' => 'active',
-                'notes' => $data['notes'] ?? null,
                 'created_by' => $creator->id,
             ]);
+
+            // Attach vendors
+            $task->vendors()->attach($vendorIds);
 
             // Attach gates
             $task->gates()->attach($gateIds);
@@ -82,7 +76,7 @@ class TaskService
 
             DB::commit();
 
-            return ['success' => true, 'task' => $task->load(['vendor', 'pic', 'gates'])];
+            return ['success' => true, 'task' => $task->load(['vendors', 'pic', 'gates'])];
         } catch (\Exception $e) {
             DB::rollBack();
             return ['success' => false, 'error' => 'Failed to create task: ' . $e->getMessage()];
@@ -144,12 +138,12 @@ class TaskService
      */
     public function getTasksForUser(User $user, array $filters = [])
     {
-        $query = Task::with(['vendor', 'pic', 'gates']);
+        $query = Task::with(['vendors', 'pic', 'gates']);
 
         // Apply role-based visibility
         if ($user->isVendor()) {
-            // Vendors can only see their own tasks
-            $query->where('vendor_id', $user->id);
+            // Vendors can only see tasks they are assigned to
+            $query->whereHas('vendors', fn($q) => $q->where('users.id', $user->id));
         }
         // DCFM and SOC can see all tasks (no filter needed)
 

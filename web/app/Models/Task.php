@@ -18,12 +18,11 @@ class Task extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'vendor_id',
+        'title',
         'pic_id',
         'start_time',
         'end_time',
         'status',
-        'notes',
         'created_by',
     ];
 
@@ -43,11 +42,11 @@ class Task extends Model
     // ==================== Relationships ====================
 
     /**
-     * Get the vendor for this task.
+     * Get the vendors assigned to this task.
      */
-    public function vendor(): BelongsTo
+    public function vendors(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'vendor_id');
+        return $this->belongsToMany(User::class, 'task_vendor', 'task_id', 'vendor_id')->withTimestamps();
     }
 
     /**
@@ -115,7 +114,9 @@ class Task extends Model
      */
     public function scopeForVendor($query, $vendorId)
     {
-        return $query->where('vendor_id', $vendorId);
+        return $query->whereHas('vendors', function ($q) use ($vendorId) {
+            $q->where('users.id', $vendorId);
+        });
     }
 
     /**

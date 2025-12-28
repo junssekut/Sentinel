@@ -104,11 +104,11 @@ class User extends Authenticatable
     // ==================== Relationships ====================
 
     /**
-     * Get tasks where this user is the vendor.
+     * Get tasks where this user is assigned as a vendor.
      */
-    public function vendorTasks(): HasMany
+    public function vendorTasks(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->hasMany(Task::class, 'vendor_id');
+        return $this->belongsToMany(Task::class, 'task_vendor', 'vendor_id', 'task_id')->withTimestamps();
     }
 
     /**

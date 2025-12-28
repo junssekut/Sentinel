@@ -43,17 +43,23 @@
                         @endif
                     </div>
 
-                    <!-- Vendor Info -->
+                    <!-- Vendors Info -->
                     <div class="mb-6">
-                        <h3 class="text-sm font-medium text-slate mb-2">Vendor</h3>
-                        <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 bg-sentinel-blue/10 rounded-full flex items-center justify-center">
-                                <span class="text-sentinel-blue font-semibold text-lg">{{ substr($task->vendor->name, 0, 1) }}</span>
+                        <h3 class="text-sm font-medium text-slate mb-2">Vendors</h3>
+                        <div class="space-y-3">
+                            @forelse($task->vendors as $vendor)
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-sentinel-blue/10 rounded-full flex items-center justify-center">
+                                    <span class="text-sentinel-blue font-semibold text-lg">{{ substr($vendor->name, 0, 1) }}</span>
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-navy">{{ $vendor->name }}</p>
+                                    <p class="text-sm text-slate">{{ $vendor->email }}</p>
+                                </div>
                             </div>
-                            <div>
-                                <p class="font-semibold text-navy">{{ $task->vendor->name }}</p>
-                                <p class="text-sm text-slate">{{ $task->vendor->email }}</p>
-                            </div>
+                            @empty
+                            <p class="text-slate text-sm">No vendors assigned</p>
+                            @endforelse
                         </div>
                     </div>
 
