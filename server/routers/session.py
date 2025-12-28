@@ -101,10 +101,13 @@ def validate_task_for_access(
         # For backwards compatibility, we check both
         return False, None, f"Gate not found for door_id: {door_id}"
     
-    # Find active task for this vendor-PIC pair
-    task = db.query(models.Task).filter(
+    # Find active task for this vendor-PIC pair using many-to-many relationship
+    task = db.query(models.Task).join(
+        models.task_vendor,
+        models.Task.id == models.task_vendor.c.task_id
+    ).filter(
         and_(
-            models.Task.vendor_id == vendor_id,
+            models.task_vendor.c.vendor_id == vendor_id,
             models.Task.pic_id == pic_id,
             models.Task.status == 'active',
             models.Task.start_time <= now,
@@ -139,10 +142,13 @@ def validate_task_for_access_by_pair(
     """
     now = datetime.now()
     
-    # Find active task for this vendor-PIC pair within time window
-    task = db.query(models.Task).filter(
+    # Find active task for this vendor-PIC pair within time window using many-to-many
+    task = db.query(models.Task).join(
+        models.task_vendor,
+        models.Task.id == models.task_vendor.c.task_id
+    ).filter(
         and_(
-            models.Task.vendor_id == vendor_id,
+            models.task_vendor.c.vendor_id == vendor_id,
             models.Task.pic_id == pic_id,
             models.Task.status == 'active',
             models.Task.start_time <= now,
