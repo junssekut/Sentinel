@@ -1,0 +1,224 @@
+/*
+ * Sentinel Door Lock IoT - Server-Driven Actuator with Feedback
+ * 
+ * Hardware: NodeMCU ESP8266 + Relay 1CH 5V + Solenoid Door Lock + LEDs + Buzzer
+ * 
+ * STABILITY FIXES APPLIED:
+ * - HTTP response sent BEFORE any feedback delays
+ * - yield() called after every delay to feed watchdog
+ * - WiFi reconnection handling in loop
+ * 
+ * Pin Configuration:
+ *   D0 - Relay (Solenoid)
+ *   D1 - Green LED (Access Granted)
+ *   D3 - Red LED (Access Denied)
+ *   D8 - Buzzer
+ */
+
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <SPI.h>
+#include "config.h"
+
+// Pin definitions
+#define RELAY_PIN   D0
+#define LED_HIJAU   D1
+#define LED_MERAH   D3
+#define BUZZER      D8
+
+// Door states
+enum DoorState { LOCKED, UNLOCKED };
+DoorState currentState = LOCKED;
+
+ESP8266WebServer server(80);
+
+// ============================================================
+// Helper Functions
+// ============================================================
+
+void setDoorState(DoorState state) {
+    currentState = state;
+    if (state == UNLOCKED) {
+        digitalWrite(RELAY_PIN, HIGH);
+        Serial.println("[DOOR] UNLOCKED");
+    } else {
+        delay(50);
+        yield();  // Feed watchdog
+        digitalWrite(RELAY_PIN, LOW);
+        delay(50);
+        yield();  // Feed watchdog
+        Serial.println("[DOOR] LOCKED");
+    }
+}
+
+bool validateSecret() {
+    if (!server.hasHeader("X-API-Secret")) {
+        return false;
+    }
+    return server.header("X-API-Secret") == API_SECRET;
+}
+
+void sendJsonResponse(int code, String message) {
+    String json = "{\"status\":\"" + message + "\",\"door\":\"" + 
+                  (currentState == LOCKED ? "locked" : "unlocked") + "\"}";
+    server.send(code, "application/json", json);
+}
+
+// Feedback functions - called AFTER sending HTTP response
+void feedbackSuccess() {
+    digitalWrite(LED_HIJAU, HIGH);
+    
+    for (int i = 0; i < 2; i++) {
+        digitalWrite(BUZZER, HIGH);
+        delay(100);
+        yield();
+        digitalWrite(BUZZER, LOW);
+        delay(100);
+        yield();
+    }
+    
+    delay(500);
+    yield();
+    digitalWrite(LED_HIJAU, LOW);
+}
+
+void feedbackDenied() {
+    digitalWrite(LED_MERAH, HIGH);
+    digitalWrite(BUZZER, HIGH);
+    
+    // Split long delay into smaller chunks with yield()
+    for (int i = 0; i < 3; i++) {
+        delay(500);
+        yield();
+    }
+    
+    digitalWrite(BUZZER, LOW);
+    digitalWrite(LED_MERAH, LOW);
+}
+
+// ============================================================
+// HTTP Handlers - SEND RESPONSE FIRST, THEN DO FEEDBACK
+// ============================================================
+
+void handleUnlock() {
+    if (!validateSecret()) {
+        sendJsonResponse(401, "unauthorized");  // Response FIRST
+        feedbackDenied();  // Then feedback
+        return;
+    }
+    
+    setDoorState(UNLOCKED);
+    sendJsonResponse(200, "unlocked");  // Response FIRST
+    feedbackSuccess();  // Then feedback
+}
+
+void handleLock() {
+    if (!validateSecret()) {
+        sendJsonResponse(401, "unauthorized");  // Response FIRST
+        feedbackDenied();  // Then feedback
+        return;
+    }
+    
+    setDoorState(LOCKED);
+    sendJsonResponse(200, "locked");  // Response FIRST - no feedback for lock
+}
+
+void handleStatus() {
+    String json = "{\"door\":\"" + String(currentState == LOCKED ? "locked" : "unlocked") + 
+                  "\",\"uptime\":" + String(millis() / 1000) + 
+                  ",\"ip\":\"" + WiFi.localIP().toString() + "\"}";
+    server.send(200, "application/json", json);
+}
+
+void handleNotFound() {
+    server.send(404, "application/json", "{\"error\":\"not found\"}");
+}
+
+// ============================================================
+// Setup & Loop
+// ============================================================
+
+void setup() {
+    Serial.begin(115200);
+    Serial.println("\n[SENTINEL] Door Lock IoT Starting...");
+
+    // Initialize pins
+    pinMode(RELAY_PIN, OUTPUT);
+    pinMode(LED_HIJAU, OUTPUT);
+    pinMode(LED_MERAH, OUTPUT);
+    pinMode(BUZZER, OUTPUT);
+
+    // Set default states
+    digitalWrite(RELAY_PIN, LOW);
+    digitalWrite(LED_HIJAU, LOW);
+    digitalWrite(LED_MERAH, LOW);
+    digitalWrite(BUZZER, LOW);
+    
+    // Initialize SPI
+    SPI.begin();
+    
+    setDoorState(LOCKED);
+
+    // Connect to WiFi
+    Serial.print("[WIFI] Connecting to ");
+    Serial.println(WIFI_SSID);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+        delay(500);
+        yield();
+        Serial.print(".");
+        attempts++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println();
+        Serial.print("[WIFI] Connected! IP: ");
+        Serial.println(WiFi.localIP());
+        feedbackSuccess();
+    } else {
+        Serial.println("\n[WIFI] Failed to connect. Restarting...");
+        feedbackDenied();
+        delay(100);
+        yield();
+        ESP.restart();
+    }
+
+    // Setup HTTP server
+    server.collectHeaders("X-API-Secret");
+    server.on("/unlock", HTTP_POST, handleUnlock);
+    server.on("/lock", HTTP_POST, handleLock);
+    server.on("/status", HTTP_GET, handleStatus);
+    server.onNotFound(handleNotFound);
+    server.begin();
+    
+    Serial.println("[HTTP] Server started on port 80");
+    Serial.println("[READY] Waiting for commands...");
+}
+
+void loop() {
+    server.handleClient();
+    yield();  // Allow background tasks
+    
+    // Check WiFi and reconnect if needed
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[WIFI] Disconnected! Reconnecting...");
+        WiFi.reconnect();
+        
+        int attempts = 0;
+        while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+            delay(500);
+            yield();
+            attempts++;
+        }
+        
+        if (WiFi.status() != WL_CONNECTED) {
+            Serial.println("[WIFI] Reconnect failed. Restarting...");
+            delay(100);
+            yield();
+            ESP.restart();
+        }
+    }
+}
